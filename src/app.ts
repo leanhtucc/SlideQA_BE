@@ -5,6 +5,7 @@ import { env } from "./config/env.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import coursesRouter from "./modules/courses/courses.routes.js";
+import conversationsRouter from "./modules/conversations/conversations.routes.js";
 import documentsRouter from "./modules/documents/documents.routes.js";
 import meRouter from "./modules/me/me.routes.js";
 
@@ -24,6 +25,7 @@ app.use("/api/v1/auth", authRouter);
 app.use("/api/v1", meRouter);
 app.use("/api/v1/courses", coursesRouter);
 app.use("/api/v1/documents", documentsRouter);
+app.use("/api/v1/conversations", conversationsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

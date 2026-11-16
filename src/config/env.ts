@@ -25,6 +25,14 @@ const schema = z.object({
 
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
+  ANTHROPIC_BASE_URL: z.string().default("https://api.anthropic.com"),
+  /** `mock` = trợ lý giả trả lời từ đoạn đầu của ngữ cảnh, để phát triển web mà không cần khóa API */
+  LLM_PROVIDER: z.enum(["anthropic", "mock"]).default("anthropic"),
+  LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
+  /** Chờ giữa các lần thử lại: base, 3×base (tối đa 2 lần thử lại, NFR-14) */
+  LLM_RETRY_BASE_MS: z.coerce.number().int().min(0).default(500),
+  /** Số lượt hỏi tối đa mỗi giờ mỗi người dùng (NFR-09) */
+  ASK_RATE_MAX: z.coerce.number().int().positive().default(30),
 });
 
 const parsed = schema.safeParse(process.env);
@@ -37,5 +45,5 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   CORS_ORIGINS: parsed.data.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean),
-  llmEnabled: Boolean(parsed.data.ANTHROPIC_API_KEY),
+  llmEnabled: parsed.data.LLM_PROVIDER === "mock" || Boolean(parsed.data.ANTHROPIC_API_KEY),
 };

@@ -46,6 +46,15 @@ Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractiv
 
 `POST /api/v1/documents` (multipart: `file`, `courseId`; tối đa 50 MB) trả 202 và xử lý nền; client hỏi lại `GET /documents/:id` (trạng thái `processing` → `ready` | `failed`). Còn có `GET /documents?courseId=`, `PATCH`, `DELETE`, `POST /:id/retry`, `GET /:id/file` (hỗ trợ `Range`). Tệp lưu ở `STORAGE_DIR` (mặc định `./data/files`) với khóa do server sinh. Worker nền chạy cùng tiến trình API (`src/lib/jobs`), lấy job từ bảng `jobs`. Chưa hỗ trợ PDF scan (không có OCR): trang không có chữ được đếm và cảnh báo.
 
+## Hỏi đáp (SRS mục 7.2, 10)
+
+`POST /conversations` (phạm vi: `courseId` hoặc `documentIds`), `GET /conversations?q=`, `GET|PATCH|DELETE /conversations/:id`, `POST /conversations/:id/messages {question}` → `{ mode, content, sources[] }` với `mode` là `llm`, `extractive` hoặc `no-match`.
+
+- `no-match`: không đoạn nào đủ độ phủ → không gọi AI. `extractive`: trả các đoạn gốc kèm trang khi chưa bật AI, người dùng chưa đồng ý, hoặc AI lỗi sau 2 lần thử lại.
+- Server **không bao giờ** gửi đoạn tài liệu cho AI nếu người dùng chưa đồng ý: `PUT /me/llm-consent {granted}`.
+- Giới hạn 30 lượt hỏi/giờ/người dùng (`ASK_RATE_MAX`).
+- Phát triển web không cần khóa API: đặt `LLM_PROVIDER=mock` (trợ lý giả trả lời bằng câu đầu của đoạn [1]). Dùng thật: đặt `ANTHROPIC_API_KEY`.
+
 ## Cấu trúc
 
 - `src/config/env.ts`: đọc và kiểm tra biến môi trường (thiếu là dừng ngay).
