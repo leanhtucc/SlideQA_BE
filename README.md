@@ -1,6 +1,6 @@
 # Slide QA API
 
-Backend dùng chung cho web và mobile (Node.js 20+, Express 5, TypeScript ESM, Prisma, PostgreSQL).
+Backend dùng chung cho web và mobile (Node.js 22.13+ vì `pdfjs-dist` 6, Express 5, TypeScript ESM, Prisma, PostgreSQL).
 
 ## Chạy cục bộ
 
@@ -41,6 +41,10 @@ Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractiv
 `POST /api/v1/auth/register | login | refresh | logout` và `GET /api/v1/me`. Access token JWT sống 15 phút; refresh token ngẫu nhiên sống 30 ngày, DB chỉ lưu băm, mỗi token dùng một lần (dùng lại = thu hồi cả họ). Đăng nhập giới hạn 5 lần/phút/IP. Cần `JWT_ACCESS_SECRET` (≥ 32 ký tự) trong `.env`.
 
 `npm run test:db` từ chối chạy khi `DATABASE_URL` trỏ tới Supabase; hãy export `DATABASE_URL` cục bộ trước khi chạy.
+
+## Tài liệu PDF (SRS mục 10)
+
+`POST /api/v1/documents` (multipart: `file`, `courseId`; tối đa 50 MB) trả 202 và xử lý nền; client hỏi lại `GET /documents/:id` (trạng thái `processing` → `ready` | `failed`). Còn có `GET /documents?courseId=`, `PATCH`, `DELETE`, `POST /:id/retry`, `GET /:id/file` (hỗ trợ `Range`). Tệp lưu ở `STORAGE_DIR` (mặc định `./data/files`) với khóa do server sinh. Worker nền chạy cùng tiến trình API (`src/lib/jobs`), lấy job từ bảng `jobs`. Chưa hỗ trợ PDF scan (không có OCR): trang không có chữ được đếm và cảnh báo.
 
 ## Cấu trúc
 

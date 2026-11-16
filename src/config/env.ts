@@ -18,6 +18,11 @@ const schema = z.object({
   /** Phiên bản điều khoản/chính sách người dùng đang đồng ý */
   TERMS_VERSION: z.string().default("2026-11"),
 
+  /** Thư mục kho tệp PDF (kho cục bộ) */
+  STORAGE_DIR: z.string().default("./data/files"),
+  /** Dung lượng tối đa mỗi tệp tải lên: 50 MB (FR-DOC-01) */
+  MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(50 * 1024 * 1024),
+
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
 });

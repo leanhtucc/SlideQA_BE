@@ -1,4 +1,5 @@
 import type { Course, Prisma } from "@prisma/client";
+import { storage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error.js";
 import { prisma } from "../../prisma.js";
 
@@ -59,9 +60,10 @@ export async function updateCourse(
   return getCourse(userId, id);
 }
 
-// shortcut: xóa môn xóa luôn hàng Document trong DB (cascade), nhưng chưa xóa tệp PDF gốc trong kho;
-// lát B4 (Storage) sẽ xóa tệp trước khi xóa môn.
+/** Xóa môn xóa luôn tài liệu (cascade trong DB) và các tệp PDF gốc trong kho. */
 export async function deleteCourse(userId: string, id: string) {
+  const docs = await prisma.document.findMany({ where: { courseId: id, userId }, select: { storageKey: true } });
   const { count } = await prisma.course.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound();
+  await Promise.all(docs.map((d) => storage.remove(d.storageKey)));
 }

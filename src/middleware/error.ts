@@ -1,4 +1,5 @@
 import type { ErrorRequestHandler, RequestHandler } from "express";
+import multer from "multer";
 import { ZodError } from "zod";
 
 /** Lỗi nghiệp vụ có mã HTTP; body luôn là { error: { code, message } } (SRS mục 10). */
@@ -26,6 +27,13 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     const fields: Record<string, string> = {};
     for (const i of err.issues) fields[i.path.join(".") || "_"] ??= i.message;
     res.status(422).json({ error: { code: "validation_error", message: "Dữ liệu gửi lên chưa hợp lệ.", fields } });
+    return;
+  }
+  if (err instanceof multer.MulterError) {
+    const tooBig = err.code === "LIMIT_FILE_SIZE";
+    res.status(tooBig ? 413 : 400).json({
+      error: { code: tooBig ? "file_too_large" : "bad_upload", message: tooBig ? "Tệp lớn hơn giới hạn cho phép (50 MB)." : "Tải lên không hợp lệ." },
+    });
     return;
   }
   if (err?.type === "entity.parse.failed") {

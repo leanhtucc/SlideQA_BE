@@ -4,3 +4,6 @@ dist
 .env
 
 /generated/prisma
+
+# kho tệp PDF cục bộ
+/data

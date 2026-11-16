@@ -33,6 +33,8 @@ export interface Chunk {
   id: string;
   docId: string;
   page: number;
+  /** Thứ tự đoạn khi một trang bị cắt */
+  part: number;
   text: string;
 }
 
@@ -95,19 +97,20 @@ export function chunkPages(docId: string, pages: { page: number; text: string }[
   for (const p of pages) {
     if (!p.text.trim()) continue;
     if (p.text.length <= maxChars) {
-      out.push({ id: `${docId}:${p.page}:0`, docId, page: p.page, text: p.text });
+      out.push({ id: `${docId}:${p.page}:0`, docId, page: p.page, part: 0, text: p.text });
       continue;
     }
     let buf = "";
     let part = 0;
     for (const para of p.text.split(/\n+/)) {
       if (buf && buf.length + para.length > maxChars) {
-        out.push({ id: `${docId}:${p.page}:${part++}`, docId, page: p.page, text: buf });
+        out.push({ id: `${docId}:${p.page}:${part}`, docId, page: p.page, part, text: buf });
+        part++;
         buf = "";
       }
       buf += (buf ? "\n" : "") + para;
     }
-    if (buf) out.push({ id: `${docId}:${p.page}:${part}`, docId, page: p.page, text: buf });
+    if (buf) out.push({ id: `${docId}:${p.page}:${part}`, docId, page: p.page, part, text: buf });
   }
   return out;
 }

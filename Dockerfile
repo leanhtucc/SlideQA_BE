@@ -1,4 +1,5 @@
-FROM node:18-alpine
+# pdfjs-dist 6 cần Node >= 22.13
+FROM node:22-alpine
 
 # Tạo user non-root
 RUN addgroup -S app && adduser -S app -G app
@@ -18,6 +19,10 @@ RUN npx prisma generate
 
 # Build TypeScript
 RUN npm run build
+
+# Kho tệp PDF cục bộ (gắn volume ở đây khi deploy bằng Docker)
+RUN mkdir -p /app/data/files && chown -R app:app /app/data
+VOLUME ["/app/data"]
 
 USER app
 
