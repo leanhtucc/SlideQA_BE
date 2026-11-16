@@ -8,6 +8,8 @@ export class AppError extends Error {
     public status: number,
     public code: string,
     message: string,
+    /** Lỗi theo từng trường cho form (giống lỗi validation) */
+    public fields?: Record<string, string> | undefined,
   ) {
     super(message);
   }
@@ -19,7 +21,7 @@ export const notFound: RequestHandler = (_req, _res, next) => {
 
 export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
   if (err instanceof AppError) {
-    res.status(err.status).json({ error: { code: err.code, message: err.message } });
+    res.status(err.status).json({ error: { code: err.code, message: err.message, ...(err.fields ? { fields: err.fields } : {}) } });
     return;
   }
   if (err instanceof ZodError) {

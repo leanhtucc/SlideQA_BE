@@ -8,6 +8,7 @@ import coursesRouter from "./modules/courses/courses.routes.js";
 import conversationsRouter from "./modules/conversations/conversations.routes.js";
 import documentsRouter from "./modules/documents/documents.routes.js";
 import meRouter from "./modules/me/me.routes.js";
+import { attemptsRouter, quizzesRouter } from "./modules/quizzes/quizzes.routes.js";
 
 export const app = express();
 
@@ -26,6 +27,8 @@ app.use("/api/v1", meRouter);
 app.use("/api/v1/courses", coursesRouter);
 app.use("/api/v1/documents", documentsRouter);
 app.use("/api/v1/conversations", conversationsRouter);
+app.use("/api/v1/quizzes", quizzesRouter);
+app.use("/api/v1/attempts", attemptsRouter);
 
 app.use(notFound);
 app.use(errorHandler);

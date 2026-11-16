@@ -55,6 +55,10 @@ Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractiv
 - Giới hạn 30 lượt hỏi/giờ/người dùng (`ASK_RATE_MAX`).
 - Phát triển web không cần khóa API: đặt `LLM_PROVIDER=mock` (trợ lý giả trả lời bằng câu đầu của đoạn [1]). Dùng thật: đặt `ANTHROPIC_API_KEY`.
 
+## Quiz (SRS mục 7.3, 10)
+
+`POST /quizzes {documentId, fromPage?, toPage?, count 1-10}` (cần AI bật và người dùng đã đồng ý; tối đa 10 lần/giờ, `QUIZ_RATE_MAX`), `GET /quizzes`, `GET /quizzes/:id`, `POST /quizzes/:id/attempts` (trả lại lượt đang làm dở nếu có), `GET /attempts/:id`, `PUT /attempts/:id/answers/:itemId {chosenIndex}` (chấm ngay, mỗi câu một lần), `POST /attempts/:id/finish`. Server chỉ gửi AI tối đa khoảng 12.000 ký tự của khoảng trang đã chọn, loại câu không đủ 4 đáp án khác nhau, đáp án đúng ngoài 0-3, thiếu giải thích hoặc có số trang không thuộc ngữ cảnh. Đáp án chỉ lộ sau khi trả lời câu đó (hoặc khi lượt kết thúc).
+
 ## Cấu trúc
 
 - `src/config/env.ts`: đọc và kiểm tra biến môi trường (thiếu là dừng ngay).

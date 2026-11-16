@@ -33,6 +33,8 @@ const schema = z.object({
   LLM_RETRY_BASE_MS: z.coerce.number().int().min(0).default(500),
   /** Số lượt hỏi tối đa mỗi giờ mỗi người dùng (NFR-09) */
   ASK_RATE_MAX: z.coerce.number().int().positive().default(30),
+  /** Số lần tạo quiz tối đa mỗi giờ mỗi người dùng (mỗi lần tốn nhiều token hơn một câu hỏi) */
+  QUIZ_RATE_MAX: z.coerce.number().int().positive().default(10),
 });
 
 const parsed = schema.safeParse(process.env);
