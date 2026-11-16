@@ -17,6 +17,15 @@ Tạo migration mới sau khi sửa `prisma/schema.prisma`: `npm run prisma:migr
 
 Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractive` (trả đoạn liên quan kèm trang), quiz tắt.
 
+## Dùng Supabase thay cho Docker
+
+1. Tạo project trên supabase.com (vùng Singapore), nhớ mật khẩu database.
+2. Vào **Connect** của project, lấy hai chuỗi và đặt vào `.env` (không commit):
+   - `DATABASE_URL`: Transaction pooler (cổng 6543), thêm `?pgbouncer=true&connection_limit=1`.
+   - `DIRECT_URL`: Direct connection (cổng 5432). Nếu mạng không hỗ trợ IPv6 thì dùng Session pooler.
+3. `npm run prisma:deploy` rồi `npm run seed` (seed chỉ để dev).
+4. Migration `enable_rls` bật RLS cho mọi bảng, nên API REST công khai của Supabase (khóa anon) không đọc được dữ liệu. Backend dùng role `postgres` nên không bị ảnh hưởng.
+
 ## Lệnh
 
 | Lệnh | Việc |

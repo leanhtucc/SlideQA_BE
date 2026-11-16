@@ -80,6 +80,13 @@ test("xóa User: xóa sạch mọi dữ liệu liên quan (NFR-12)", async () =>
   assert.deepEqual(counts, new Array(counts.length).fill(0));
 });
 
+test("mọi bảng ứng dụng đều bật RLS (chặn API REST công khai của Supabase)", async () => {
+  const rows = await prisma.$queryRaw<{ relname: string }[]>`
+    SELECT c.relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace
+    WHERE n.nspname = 'public' AND c.relkind = 'r' AND NOT c.relrowsecurity AND c.relname NOT LIKE '\_prisma%'`;
+  assert.deepEqual(rows, []);
+});
+
 test("enum no-match được lưu và đọc lại", async () => {
   const u = await prisma.user.create({ data: { email: uniq(), displayName: "A" } });
   const c = await prisma.conversation.create({ data: { userId: u.id, title: "t" } });
