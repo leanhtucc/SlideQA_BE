@@ -11,6 +11,7 @@
     "test": "tsx --test \"src/**/*.test.ts\"",
     "test:db": "tsx --test \"src/**/*.int.ts\"",
     "seed": "tsx src/seed.ts",
+    "gate:p1": "tsx scripts/gate-p1.ts",
     "typecheck": "tsc --noEmit",
     "prisma:studio": "prisma studio",
     "prisma:migrate": "prisma migrate dev",

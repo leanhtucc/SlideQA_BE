@@ -59,6 +59,10 @@ Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractiv
 
 `POST /quizzes {documentId, fromPage?, toPage?, count 1-10}` (cần AI bật và người dùng đã đồng ý; tối đa 10 lần/giờ, `QUIZ_RATE_MAX`), `GET /quizzes`, `GET /quizzes/:id`, `POST /quizzes/:id/attempts` (trả lại lượt đang làm dở nếu có), `GET /attempts/:id`, `PUT /attempts/:id/answers/:itemId {chosenIndex}` (chấm ngay, mỗi câu một lần), `POST /attempts/:id/finish`. Server chỉ gửi AI tối đa khoảng 12.000 ký tự của khoảng trang đã chọn, loại câu không đủ 4 đáp án khác nhau, đáp án đúng ngoài 0-3, thiếu giải thích hoặc có số trang không thuộc ngữ cảnh. Đáp án chỉ lộ sau khi trả lời câu đó (hoặc khi lượt kết thúc).
 
+## Cổng nghiệm thu P1
+
+`npm run gate:p1` chạy cả luồng (đăng ký, đăng nhập, refresh, tải PDF 3 và 100 trang, hỏi đáp, quiz, hai tài khoản không đọc chéo, RLS) qua HTTP vào server đang chạy, rồi tự xóa tài khoản thử `gate-*@example.test`. Chạy server với `LLM_PROVIDER=mock` và `GATE_BASE_URL=http://localhost:<cổng>/api/v1` (mặc định cổng 3931). Dùng được với cả Postgres cục bộ lẫn Supabase.
+
 ## Cấu trúc
 
 - `src/config/env.ts`: đọc và kiểm tra biến môi trường (thiếu là dừng ngay).
