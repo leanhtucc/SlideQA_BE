@@ -3,6 +3,7 @@ import { createReadStream } from "node:fs";
 import { open } from "node:fs/promises";
 import type { Document } from "@prisma/client";
 import { enqueueExtract } from "../../lib/jobs/worker.js";
+import { invalidateUserIndex } from "../../lib/search/index.js";
 import { storage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error.js";
 import { prisma } from "../../prisma.js";
@@ -105,6 +106,7 @@ export async function updateDocument(userId: string, id: string, b: { name?: str
     data: { ...(b.name !== undefined ? { name: b.name } : {}), ...(b.courseId !== undefined ? { courseId: b.courseId } : {}) },
   });
   if (count === 0) throw notFound();
+  invalidateUserIndex(userId); // tên và môn nằm trong chỉ mục
   return getDocument(userId, id);
 }
 
@@ -113,6 +115,7 @@ export async function deleteDocument(userId: string, id: string) {
   const doc = await getDocumentRow(userId, id);
   const { count } = await prisma.document.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound();
+  invalidateUserIndex(userId);
   await storage.remove(doc.storageKey);
 }
 

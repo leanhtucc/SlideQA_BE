@@ -1,6 +1,7 @@
 import { prisma } from "../../prisma.js";
 import { extractPages, PdfError } from "../pdf/extract.js";
 import { chunkPages } from "../search/bm25.js";
+import { invalidateUserIndex } from "../search/index.js";
 import { storage } from "../storage/index.js";
 
 async function readAll(stream: NodeJS.ReadableStream): Promise<Buffer> {
@@ -24,6 +25,7 @@ export async function extractDocument(documentId: string): Promise<void> {
         data: { status: "ready", error: null, pages: pages.length, emptyPages: pages.filter((p) => !p.text.trim()).length },
       }),
     ]);
+    invalidateUserIndex(doc.userId);
   } catch (e) {
     const message = e instanceof PdfError ? e.message : "Xử lý tệp thất bại, hãy thử lại.";
     if (!(e instanceof PdfError)) console.error("extractDocument", documentId, e instanceof Error ? e.message : e);

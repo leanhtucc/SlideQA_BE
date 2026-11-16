@@ -1,4 +1,5 @@
 import type { Course, Prisma } from "@prisma/client";
+import { invalidateUserIndex } from "../../lib/search/index.js";
 import { storage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error.js";
 import { prisma } from "../../prisma.js";
@@ -65,5 +66,6 @@ export async function deleteCourse(userId: string, id: string) {
   const docs = await prisma.document.findMany({ where: { courseId: id, userId }, select: { storageKey: true } });
   const { count } = await prisma.course.deleteMany({ where: { id, userId } });
   if (count === 0) throw notFound();
+  invalidateUserIndex(userId);
   await Promise.all(docs.map((d) => storage.remove(d.storageKey)));
 }
