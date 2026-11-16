@@ -1,7 +1,6 @@
-// TODO: Add server setup and configuration
-// TODO: Initialize Express app
-// TODO: Set up middleware
-// TODO: Define routes
-// TODO: Configure database connection
-// TODO: Add error handling
-// TODO: Start server listener
+import { app } from "./app.js";
+import { env } from "./config/env.js";
+
+app.listen(env.PORT, () => {
+  console.log(`Slide QA API chạy tại http://localhost:${env.PORT}  (AI: ${env.llmEnabled ? "bật" : "tắt, chỉ trả về đoạn liên quan"})`);
+});

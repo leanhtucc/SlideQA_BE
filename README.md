@@ -1,101 +1,31 @@
-# 🚀 Setup Backend Basic (Node.js + Prisma + PostgreSQL + Docker)
+# Slide QA API
 
-## 0️⃣ Yêu cầu
+Backend dùng chung cho web và mobile (Node.js 20+, Express 5, TypeScript ESM, Prisma, PostgreSQL).
 
-- Node.js >= 18
-- Docker & Docker Compose
-- npm
-
-## 1️⃣ Khởi động Database bằng Docker
-
-### Chạy database
+## Chạy cục bộ
 
 ```bash
-docker compose up -d
-```
-
-### Kiểm tra container
-
-```bash
-docker ps
-```
-
-## 2️⃣ Cài dependency
-
-```bash
+docker compose up -d          # PostgreSQL
+cp .env.example .env          # rồi chỉnh nếu cần
 npm install
+npm run prisma:generate
+npm run dev                   # http://localhost:3000/api/v1/health
 ```
 
-## 3️⃣ Cài & khởi tạo Prisma
+Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractive` (trả đoạn liên quan kèm trang), quiz tắt.
 
-```bash
-npx prisma init
-```
+## Lệnh
 
-👉 Lệnh này sẽ tạo:
+| Lệnh | Việc |
+| --- | --- |
+| `npm run dev` | Chạy có tự reload (tsx) |
+| `npm test` | Test (`node:test`, supertest) |
+| `npm run typecheck` | Kiểm tra kiểu |
+| `npm run build` / `npm start` | Biên dịch và chạy bản production |
 
-```
-prisma/
-└─ schema.prisma
-```
+## Cấu trúc
 
-👉 Đồng thời sinh file `.env`
-
-### Sửa .env cho đúng PostgreSQL (QUAN TRỌNG)
-
-```env
-DATABASE_URL="postgresql://todolist_user:todolist_pass@localhost:5432/todolist_db"
-```
-
-⚠️ KHÔNG dùng mysql URL vì project đang chạy Postgres bằng Docker.
-
-## 4️⃣ Tạo schema Todo (QUAN TRỌNG)
-
-### Mở file: `prisma/schema.prisma`
-
-Ví dụ:
-
-```prisma
-model Todo {
-    id        Int      @id @default(autoincrement())
-    title     String
-    completed Boolean  @default(false)
-    createdAt DateTime @default(now())
-    updatedAt DateTime @updatedAt
-}
-```
-
-## 5️⃣ Migrate database & generate Prisma Client
-
-```bash
-npx prisma migrate dev --name init
-npx prisma generate
-```
-
-👉 Kết quả:
-
-- Database tạo bảng Todo
-- Prisma Client sẵn sàng dùng trong code
-
-## 6️⃣ Kiểm tra database (tuỳ chọn)
-
-```bash
-npx prisma studio
-```
-
-👉 Mở browser để xem & chỉnh sửa dữ liệu trực tiếp.
-
-## 7️⃣ Chạy backend
-
-```bash
-npm run dev
-```
-
-Server mặc định: `http://localhost:3000`
-
-## 📌 Done!
-
-Giờ bạn có thể:
-
-- ✅ Viết API CRUD
-- 🔐 Mở rộng User + JWT Auth
+- `src/config/env.ts`: đọc và kiểm tra biến môi trường (thiếu là dừng ngay).
+- `src/middleware/error.ts`: mọi lỗi trả `{ "error": { "code", "message" } }`.
+- `src/lib/search/`: BM25 và bỏ dấu tiếng Việt (chuyển từ MVP).
+- `src/modules/*`: từng nhóm API (sẽ làm theo plan.md, lát B2 trở đi).
