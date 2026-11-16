@@ -36,6 +36,12 @@ Không đặt `ANTHROPIC_API_KEY` thì hỏi đáp chạy chế độ `extractiv
 | `npm run typecheck` | Kiểm tra kiểu |
 | `npm run build` / `npm start` | Biên dịch và chạy bản production |
 
+## Xác thực (SRS mục 10)
+
+`POST /api/v1/auth/register | login | refresh | logout` và `GET /api/v1/me`. Access token JWT sống 15 phút; refresh token ngẫu nhiên sống 30 ngày, DB chỉ lưu băm, mỗi token dùng một lần (dùng lại = thu hồi cả họ). Đăng nhập giới hạn 5 lần/phút/IP. Cần `JWT_ACCESS_SECRET` (≥ 32 ký tự) trong `.env`.
+
+`npm run test:db` từ chối chạy khi `DATABASE_URL` trỏ tới Supabase; hãy export `DATABASE_URL` cục bộ trước khi chạy.
+
 ## Cấu trúc
 
 - `src/config/env.ts`: đọc và kiểm tra biến môi trường (thiếu là dừng ngay).

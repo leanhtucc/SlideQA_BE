@@ -22,7 +22,10 @@ export const errorHandler: ErrorRequestHandler = (err, _req, res, _next) => {
     return;
   }
   if (err instanceof ZodError) {
-    res.status(422).json({ error: { code: "validation_error", message: "Dữ liệu gửi lên chưa hợp lệ." } });
+    // `fields` giúp form hiện lỗi từng trường (WEB-S01); chỉ chứa thông báo, không có giá trị người dùng nhập.
+    const fields: Record<string, string> = {};
+    for (const i of err.issues) fields[i.path.join(".") || "_"] ??= i.message;
+    res.status(422).json({ error: { code: "validation_error", message: "Dữ liệu gửi lên chưa hợp lệ.", fields } });
     return;
   }
   if (err?.type === "entity.parse.failed") {

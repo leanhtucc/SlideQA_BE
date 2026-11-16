@@ -1,3 +1,4 @@
+import "./guard.js";
 import { test, after } from "node:test";
 import assert from "node:assert/strict";
 import { randomUUID } from "node:crypto";
