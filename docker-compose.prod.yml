@@ -1,30 +1,31 @@
-version: "3.8"
-
+# Mẫu production: mật khẩu và khóa lấy từ biến môi trường, không ghi cứng trong file.
 services:
   db:
-    image: postgres:15
-    container_name: todolist-db
+    image: postgres:16
+    container_name: slideqa-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: todolist_user
-      POSTGRES_PASSWORD: todolist_pass
-      POSTGRES_DB: todolist_db
+      POSTGRES_USER: ${POSTGRES_USER:?set POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?set POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB:?set POSTGRES_DB}
     volumes:
-      - todolist-data:/var/lib/postgresql/data
+      - slideqa-data:/var/lib/postgresql/data
 
   api:
     build:
       context: .
       dockerfile: Dockerfile
-    container_name: todolist-api
+    container_name: slideqa-api
     restart: unless-stopped
     depends_on:
       - db
     environment:
-      DATABASE_URL: postgresql://todolist_user:todolist_pass@db:5432/todolist_db
+      DATABASE_URL: postgresql://${POSTGRES_USER}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB}
       NODE_ENV: production
+      CORS_ORIGIN: ${CORS_ORIGIN:?set CORS_ORIGIN}
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
     ports:
       - "3000:3000"
 
 volumes:
-  todolist-data:
+  slideqa-data:

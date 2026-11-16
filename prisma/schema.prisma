@@ -1,4 +1,6 @@
-// Schema 15 thực thể sẽ được viết ở lát B1. B0 chỉ dọn model Todo mẫu.
+// Schema Slide QA — 15 thực thể theo SRS mục 9, cộng bảng Job (hàng đợi xử lý nền, SRS mục 11).
+// Quy ước: mọi bảng dữ liệu học tập đều có userId để lọc quyền (NFR-07); xóa User thì xóa hết (NFR-12).
+
 datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
@@ -6,4 +8,357 @@ datasource db {
 
 generator client {
   provider = "prisma-client-js"
+}
+
+enum Role {
+  learner
+  admin
+}
+
+enum UserStatus {
+  active
+  locked
+}
+
+enum DocStatus {
+  processing
+  ready
+  failed
+}
+
+enum MessageRole {
+  user
+  assistant
+}
+
+enum MessageMode {
+  llm
+  extractive
+  no_match   @map("no-match")
+}
+
+enum UsageKind {
+  ask
+  quiz
+  upload
+}
+
+enum DevicePlatform {
+  android
+  ios
+}
+
+enum JobType {
+  extract_document
+}
+
+enum JobStatus {
+  queued
+  running
+  done
+  failed
+}
+
+model User {
+  id              String     @id @default(uuid())
+  email           String     @unique
+  /// null khi chỉ đăng nhập bằng Google (P3)
+  passwordHash    String?    @map("password_hash")
+  googleId        String?    @unique @map("google_id")
+  displayName     String     @map("display_name")
+  role            Role       @default(learner)
+  status          UserStatus @default(active)
+  /// Thời điểm đồng ý gửi đoạn trích cho nhà cung cấp mô hình (FR-SET-01); null = chưa đồng ý
+  llmConsentAt    DateTime?  @map("llm_consent_at")
+  /// Phiên bản chính sách/điều khoản đã đồng ý, để biết khi nào phải xin lại
+  termsVersion    String?    @map("terms_version")
+  termsAcceptedAt DateTime?  @map("terms_accepted_at")
+  createdAt       DateTime   @default(now()) @map("created_at")
+  updatedAt       DateTime   @updatedAt @map("updated_at")
+
+  refreshTokens RefreshToken[]
+  deviceTokens  DeviceToken[]
+  courses       Course[]
+  documents     Document[]
+  conversations Conversation[]
+  quizzes       Quiz[]
+  attempts      QuizAttempt[]
+  flashcards    Flashcard[]
+  usageLogs     UsageLog[]
+
+  @@map("users")
+}
+
+model RefreshToken {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  /// Chỉ lưu băm, không lưu token gốc
+  tokenHash String    @unique @map("token_hash")
+  device    String?
+  expiresAt DateTime  @map("expires_at")
+  revokedAt DateTime? @map("revoked_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("refresh_tokens")
+}
+
+model DeviceToken {
+  id        String         @id @default(uuid())
+  userId    String         @map("user_id")
+  platform  DevicePlatform
+  pushToken String         @unique @map("push_token")
+  createdAt DateTime       @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("device_tokens")
+}
+
+model Course {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  name      String
+  code      String?
+  term      String?
+  examDate  DateTime? @map("exam_date")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user          User           @relation(fields: [userId], references: [id], onDelete: Cascade)
+  documents     Document[]
+  conversations Conversation[]
+  quizzes       Quiz[]
+
+  @@index([userId])
+  @@map("courses")
+}
+
+model Document {
+  id          String    @id @default(uuid())
+  userId      String    @map("user_id")
+  courseId    String    @map("course_id")
+  name        String
+  sizeBytes   Int       @map("size_bytes")
+  pages       Int       @default(0)
+  emptyPages  Int       @default(0) @map("empty_pages")
+  /// Băm nội dung để phát hiện tải trùng (FR-DOC-07)
+  contentHash String    @map("content_hash")
+  status      DocStatus @default(processing)
+  error       String?
+  /// Đường dẫn file trong kho, luôn do server sinh (NFR-10)
+  storageKey  String    @map("storage_key")
+  createdAt   DateTime  @default(now()) @map("created_at")
+
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course  Course          @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  chunks  Chunk[]
+  sources MessageSource[]
+  quizzes Quiz[]
+  items   QuizItem[]
+  cards   Flashcard[]
+
+  @@index([userId, courseId])
+  @@index([userId, contentHash])
+  @@map("documents")
+}
+
+model Chunk {
+  id         String @id @default(uuid())
+  documentId String @map("document_id")
+  page       Int
+  /// Thứ tự đoạn khi một trang dài bị cắt (vẫn giữ số trang gốc)
+  part       Int    @default(0)
+  text       String
+
+  document Document @relation(fields: [documentId], references: [id], onDelete: Cascade)
+
+  @@index([documentId, page])
+  @@map("chunks")
+}
+
+model Conversation {
+  id               String   @id @default(uuid())
+  userId           String   @map("user_id")
+  courseId         String?  @map("course_id")
+  title            String
+  /// Phạm vi hỏi: danh sách id Document; rỗng = theo môn hoặc tất cả
+  scopeDocumentIds String[] @default([]) @map("scope_document_ids")
+  createdAt        DateTime @default(now()) @map("created_at")
+  updatedAt        DateTime @updatedAt @map("updated_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  course   Course?   @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  messages Message[]
+
+  @@index([userId, updatedAt])
+  @@map("conversations")
+}
+
+model Message {
+  id             String       @id @default(uuid())
+  conversationId String       @map("conversation_id")
+  role           MessageRole
+  content        String
+  /// Chỉ có ở tin nhắn của hệ thống
+  mode           MessageMode?
+  /// 1 = hữu ích, -1 = không hữu ích (FR-ASK-08)
+  feedback       Int?
+  feedbackNote   String?      @map("feedback_note")
+  createdAt      DateTime     @default(now()) @map("created_at")
+
+  conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sources      MessageSource[]
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
+
+model MessageSource {
+  id           String  @id @default(uuid())
+  messageId    String  @map("message_id")
+  n            Int
+  /// Không có khóa ngoại: đoạn có thể bị xóa mà nguồn vẫn còn
+  chunkId      String? @map("chunk_id")
+  /// null = tài liệu đã bị xóa (SRS: giữ nguồn, đánh dấu đã xóa)
+  documentId   String? @map("document_id")
+  /// Lưu sẵn để hiển thị được kể cả khi tài liệu bị xóa
+  documentName String  @map("document_name")
+  page         Int
+  snippet      String
+
+  message  Message   @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([messageId])
+  @@map("message_sources")
+}
+
+model Quiz {
+  id         String   @id @default(uuid())
+  userId     String   @map("user_id")
+  /// null khi quiz theo cả môn/nhiều tài liệu (FR-QZ-06) hoặc tài liệu đã bị xóa
+  documentId String?  @map("document_id")
+  courseId   String?  @map("course_id")
+  fromPage   Int?     @map("from_page")
+  toPage     Int?     @map("to_page")
+  count      Int
+  createdAt  DateTime @default(now()) @map("created_at")
+
+  user     User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document Document?     @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  course   Course?       @relation(fields: [courseId], references: [id], onDelete: SetNull)
+  items    QuizItem[]
+  attempts QuizAttempt[]
+
+  @@index([userId, createdAt])
+  @@map("quizzes")
+}
+
+model QuizItem {
+  id           String   @id @default(uuid())
+  quizId       String   @map("quiz_id")
+  /// Tài liệu chứa căn cứ của câu này; null nếu đã bị xóa
+  documentId   String?  @map("document_id")
+  position     Int
+  question     String
+  /// Đúng 4 đáp án (kiểm tra ở tầng ứng dụng)
+  options      String[]
+  correctIndex Int      @map("correct_index")
+  explanation  String
+  page         Int
+  /// Người học báo câu có vấn đề → loại khỏi các lần ôn sau (FR-QZ-07)
+  flagged      Boolean  @default(false)
+
+  quiz     Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  document Document?       @relation(fields: [documentId], references: [id], onDelete: SetNull)
+  answers  AttemptAnswer[]
+
+  @@index([quizId, position])
+  @@map("quiz_items")
+}
+
+model QuizAttempt {
+  id         String    @id @default(uuid())
+  quizId     String    @map("quiz_id")
+  userId     String    @map("user_id")
+  score      Int?
+  total      Int
+  durationS  Int?      @map("duration_s")
+  startedAt  DateTime  @default(now()) @map("started_at")
+  /// null = đang làm dở (cho phép tiếp tục, APP-07)
+  finishedAt DateTime? @map("finished_at")
+
+  quiz    Quiz            @relation(fields: [quizId], references: [id], onDelete: Cascade)
+  user    User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  answers AttemptAnswer[]
+
+  @@index([userId, startedAt])
+  @@map("quiz_attempts")
+}
+
+model AttemptAnswer {
+  attemptId   String   @map("attempt_id")
+  itemId      String   @map("item_id")
+  chosenIndex Int      @map("chosen_index")
+  isCorrect   Boolean  @map("is_correct")
+  answeredAt  DateTime @default(now()) @map("answered_at")
+
+  attempt QuizAttempt @relation(fields: [attemptId], references: [id], onDelete: Cascade)
+  item    QuizItem    @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  @@id([attemptId, itemId])
+  @@map("attempt_answers")
+}
+
+model Flashcard {
+  id           String   @id @default(uuid())
+  userId       String   @map("user_id")
+  documentId   String?  @map("document_id")
+  front        String
+  back         String
+  page         Int?
+  /// Khoảng ôn kế tiếp: 1, 3, 7, 14 ngày (FR-FC-02)
+  intervalDays Int      @default(1) @map("interval_days")
+  dueAt        DateTime @default(now()) @map("due_at")
+  createdAt    DateTime @default(now()) @map("created_at")
+
+  user     User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  document Document? @relation(fields: [documentId], references: [id], onDelete: SetNull)
+
+  @@index([userId, dueAt])
+  @@map("flashcards")
+}
+
+/// Không lưu nội dung câu hỏi hay tài liệu (NFR-08)
+model UsageLog {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  kind      UsageKind
+  tokensIn  Int       @default(0) @map("tokens_in")
+  tokensOut Int       @default(0) @map("tokens_out")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt])
+  @@map("usage_logs")
+}
+
+/// Hàng đợi xử lý nền, một worker đọc theo (status, runAt)
+model Job {
+  id        String    @id @default(uuid())
+  type      JobType
+  payload   Json
+  status    JobStatus @default(queued)
+  attempts  Int       @default(0)
+  error     String?
+  runAt     DateTime  @default(now()) @map("run_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+  updatedAt DateTime  @updatedAt @map("updated_at")
+
+  @@index([status, runAt])
+  @@map("jobs")
 }

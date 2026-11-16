@@ -1,18 +1,16 @@
-version: "3.8"
-
 services:
   db:
-    image: postgres:15
-    container_name: todolist-db
+    image: postgres:16
+    container_name: slideqa-db
     restart: unless-stopped
     environment:
-      POSTGRES_USER: todolist_user
-      POSTGRES_PASSWORD: todolist_pass
-      POSTGRES_DB: todolist_db
+      POSTGRES_USER: slideqa_user
+      POSTGRES_PASSWORD: slideqa_pass
+      POSTGRES_DB: slideqa_db
     ports:
       - "5432:5432"
     volumes:
-      - todolist-data:/var/lib/postgresql/data
+      - slideqa-data:/var/lib/postgresql/data
 
 volumes:
-  todolist-data:
+  slideqa-data:
