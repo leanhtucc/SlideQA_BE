@@ -30,7 +30,7 @@ test("put: POST vào bucket riêng, kèm khóa; lỗi thì ném mà không lộ 
   assert.equal(calls[0]?.init.method, "POST");
   assert.equal((calls[0]?.init.headers as Record<string, string>)["authorization"], "Bearer svc-key");
   stub(() => new Response("secret body", { status: 500 }));
-  await assert.rejects(s.put("u1/a.pdf", f), (e: Error) => e.message === "Supabase Storage put: 500");
+  await assert.rejects(s.put("u1/a.pdf", f), (e: Error) => e.message === "Supabase Storage put: 500 secret body");
   await rm(f);
 });
 

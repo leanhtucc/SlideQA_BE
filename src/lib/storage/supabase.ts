@@ -31,7 +31,8 @@ export class SupabaseStorage implements Storage {
       headers: this.headers({ "content-type": "application/pdf", "x-upsert": "false" }),
       body: await readFile(fromPath),
     });
-    if (!res.ok) throw new Error(`Supabase Storage put: ${res.status}`); // không đưa nội dung phản hồi vào lỗi (NFR-08)
+    // Kèm lý do Supabase báo (vd "Bucket not found"): đó là thông báo lỗi của họ, không chứa nội dung tệp hay câu hỏi (NFR-08); chỉ vào log, người dùng vẫn chỉ thấy "Lỗi máy chủ".
+    if (!res.ok) throw new Error(`Supabase Storage put: ${res.status} ${(await res.text().catch(() => "")).slice(0, 200)}`.trim());
   }
 
   async size(key: string) {
