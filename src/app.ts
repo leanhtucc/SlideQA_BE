@@ -19,7 +19,8 @@ app.use(cors({ origin: env.CORS_ORIGINS, exposedHeaders: ["Content-Range", "Acce
 app.use(express.json({ limit: "1mb" }));
 
 app.get("/api/v1/health", (_req, res) => {
-  res.json({ ok: true, llmEnabled: env.llmEnabled });
+  // llmProvider (anthropic | mock) giúp kiểm tra nhanh cấu hình đã deploy mà không cần mở log.
+  res.json({ ok: true, llmEnabled: env.llmEnabled, llmProvider: env.LLM_PROVIDER });
 });
 
 app.use("/api/v1/auth", authRouter);

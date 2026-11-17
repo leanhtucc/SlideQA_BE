@@ -12,7 +12,7 @@ const { app } = await import("./app.js");
 test("health báo ok và AI tắt khi không có khóa", async () => {
   const res = await request(app).get("/api/v1/health");
   assert.equal(res.status, 200);
-  assert.deepEqual(res.body, { ok: true, llmEnabled: false });
+  assert.deepEqual(res.body, { ok: true, llmEnabled: false, llmProvider: "anthropic" });
 });
 
 test("đường dẫn lạ trả 404 đúng định dạng lỗi", async () => {
