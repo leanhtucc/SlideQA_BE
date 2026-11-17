@@ -225,3 +225,11 @@ export async function setLlmConsent(userId: string, granted: boolean) {
   const u = await prisma.user.update({ where: { id: userId }, data: { llmConsentAt: granted ? new Date() : null } });
   return { llmConsentAt: u.llmConsentAt };
 }
+
+// ---------- đánh giá câu trả lời (FR-ASK-08) ----------
+
+export async function setFeedback(userId: string, conversationId: string, messageId: string, value: 1 | -1 | null) {
+  const { count } = await prisma.message.updateMany({ where: { id: messageId, conversationId, role: "assistant", conversation: { userId } }, data: { feedback: value } });
+  if (count === 0) throw new AppError(404, "not_found", "Không tìm thấy câu trả lời.");
+  return { feedback: value };
+}

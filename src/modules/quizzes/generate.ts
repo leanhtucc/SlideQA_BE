@@ -11,6 +11,8 @@ export interface ValidItem {
   correctIndex: number;
   explanation: string;
   page: number;
+  /** Số thứ tự tài liệu (1,2,...) khi quiz theo cả môn */
+  doc?: number;
 }
 
 /** Ngân sách ngữ cảnh gửi mô hình khi tạo quiz (NFR-11). */
@@ -37,6 +39,18 @@ export function takePassages(chunks: Passage[], budget = QUIZ_CONTEXT_CHARS): Pa
 
 export const buildQuizPrompt = (passages: Passage[], count: number) =>
   `Tạo ${count} câu từ:\n\n${passages.map((p) => `[trang ${p.page}]\n${p.text}`).join("\n\n")}`;
+
+export const COURSE_QUIZ_NOTE = `\nCác đoạn được chia theo tài liệu đánh số. Thêm vào mỗi phần tử trường "doc": số thứ tự tài liệu chứa căn cứ.`;
+const MAX_COURSE_DOCS = 10;
+
+/** Quiz cả môn: chia đều ngân sách ký tự cho từng tài liệu (tối đa 10) để mỗi tài liệu đều có câu hỏi. */
+export function takeCoursePassages(groups: { id: string; name: string; chunks: Passage[] }[], budget = QUIZ_CONTEXT_CHARS) {
+  const used = groups.filter((g) => g.chunks.length > 0).slice(0, MAX_COURSE_DOCS);
+  return used.map((g) => ({ id: g.id, name: g.name, passages: takePassages(g.chunks, Math.floor(budget / used.length)) }));
+}
+
+export const buildCourseQuizPrompt = (docs: { name: string; passages: Passage[] }[], count: number) =>
+  `Tạo ${count} câu từ:\n\n${docs.map((d, i) => `=== Tài liệu ${i + 1}: ${d.name} ===\n\n${d.passages.map((p) => `[trang ${p.page}]\n${p.text}`).join("\n\n")}`).join("\n\n")}`;
 
 /** Tìm mảng JSON trong câu trả lời (mô hình đôi khi bọc trong ```json hoặc thêm lời dẫn). */
 export function parseQuizJson(raw: string): unknown[] | null {
@@ -76,7 +90,8 @@ export function validateItems(items: unknown[], validPages: ReadonlySet<number>,
     const key = question.toLowerCase();
     if (seen.has(key)) continue;
     seen.add(key);
-    out.push({ question, options: opts, correctIndex: correct, explanation, page });
+    const doc = o["doc"];
+    out.push({ question, options: opts, correctIndex: correct, explanation, page, ...(typeof doc === "number" && Number.isInteger(doc) ? { doc } : {}) });
   }
   return out;
 }

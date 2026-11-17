@@ -21,3 +21,6 @@ export const listQuery = z.object({
 });
 
 export const consentBody = z.object({ granted: z.boolean() });
+
+/** 1 = hữu ích, -1 = không hữu ích, null = bỏ đánh giá (FR-ASK-08) */
+export const feedbackBody = z.object({ value: z.union([z.literal(1), z.literal(-1), z.null()]) });

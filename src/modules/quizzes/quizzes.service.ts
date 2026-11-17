@@ -2,7 +2,7 @@ import type { AttemptAnswer, Quiz, QuizAttempt, QuizItem } from "@prisma/client"
 import { completeWithRetry, getLlm } from "../../lib/llm/index.js";
 import { AppError } from "../../middleware/error.js";
 import { prisma } from "../../prisma.js";
-import { buildQuizPrompt, parseQuizJson, QUIZ_SYSTEM, takePassages, validateItems } from "./generate.js";
+import { buildCourseQuizPrompt, buildQuizPrompt, COURSE_QUIZ_NOTE, parseQuizJson, QUIZ_SYSTEM, takeCoursePassages, takePassages, validateItems } from "./generate.js";
 
 const notFound = (what = "bài quiz") => new AppError(404, "not_found", `Không tìm thấy ${what}.`);
 
@@ -33,7 +33,15 @@ const attemptSummary = (a: QuizAttempt) => ({
 
 // ---------- tạo quiz ----------
 
-export async function createQuiz(userId: string, b: { documentId: string; fromPage?: number | undefined; toPage?: number | undefined; count: number }) {
+interface QuizSource {
+  prompt: string;
+  system: string;
+  /** Tài liệu dùng làm ngữ cảnh, theo thứ tự đánh số trong prompt, kèm các trang đã gửi */
+  docs: { id: string; pages: Set<number> }[];
+  quiz: { documentId: string | null; courseId: string; fromPage: number | null; toPage: number | null };
+}
+
+async function documentSource(userId: string, b: { documentId: string; fromPage?: number | undefined; toPage?: number | undefined; count: number }): Promise<QuizSource> {
   const doc = await prisma.document.findFirst({ where: { id: b.documentId, userId } });
   if (!doc) throw notFound("tài liệu");
   if (doc.status !== "ready") throw new AppError(409, "document_not_ready", "Tài liệu chưa xử lý xong, hãy thử lại sau.");
@@ -43,13 +51,6 @@ export async function createQuiz(userId: string, b: { documentId: string; fromPa
   if (fromPage > doc.pages || toPage > doc.pages) {
     throw new AppError(422, "validation_error", `Tài liệu chỉ có ${doc.pages} trang.`, { toPage: `Tài liệu chỉ có ${doc.pages} trang.` });
   }
-
-  // Quiz cần mô hình nên không có chế độ thay thế: nói rõ lý do (UC-04 luồng 2a).
-  const llm = getLlm();
-  if (!llm) throw new AppError(503, "llm_unavailable", "Chức năng quiz cần trợ lý AI, hiện chưa được bật.");
-  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { llmConsentAt: true } });
-  if (!user.llmConsentAt) throw new AppError(403, "consent_required", "Bạn cần đồng ý gửi đoạn tài liệu cho nhà cung cấp AI trước khi tạo quiz.");
-
   const chunks = await prisma.chunk.findMany({
     where: { documentId: doc.id, page: { gte: fromPage, lte: toPage } },
     orderBy: [{ page: "asc" }, { part: "asc" }],
@@ -57,29 +58,68 @@ export async function createQuiz(userId: string, b: { documentId: string; fromPa
   });
   const passages = takePassages(chunks.filter((c) => c.text.trim().length > 0));
   if (passages.length === 0) throw new AppError(422, "no_content", "Không có nội dung chữ ở khoảng trang này. Hãy thử khoảng trang khác.");
+  return {
+    prompt: buildQuizPrompt(passages, b.count),
+    system: QUIZ_SYSTEM,
+    docs: [{ id: doc.id, pages: new Set(passages.map((p) => p.page)) }],
+    quiz: { documentId: doc.id, courseId: doc.courseId, fromPage, toPage },
+  };
+}
+
+/** Quiz cả môn (FR-QZ-06): mỗi câu gắn với tài liệu chứa căn cứ. */
+async function courseSource(userId: string, b: { courseId: string; count: number }): Promise<QuizSource> {
+  if (!(await prisma.course.findFirst({ where: { id: b.courseId, userId }, select: { id: true } }))) throw notFound("môn học");
+  const docs = await prisma.document.findMany({ where: { courseId: b.courseId, userId, status: "ready" }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } });
+  const groups = await Promise.all(
+    docs.map(async (d) => ({
+      ...d,
+      chunks: (await prisma.chunk.findMany({ where: { documentId: d.id }, orderBy: [{ page: "asc" }, { part: "asc" }], select: { page: true, text: true } })).filter((c) => c.text.trim().length > 0),
+    })),
+  );
+  const used = takeCoursePassages(groups);
+  if (used.length === 0) throw new AppError(422, "no_content", "Môn này chưa có tài liệu nào có nội dung để tạo quiz.");
+  return {
+    prompt: buildCourseQuizPrompt(used, b.count),
+    system: QUIZ_SYSTEM + COURSE_QUIZ_NOTE,
+    docs: used.map((d) => ({ id: d.id, pages: new Set(d.passages.map((p) => p.page)) })),
+    quiz: { documentId: null, courseId: b.courseId, fromPage: null, toPage: null },
+  };
+}
+
+export async function createQuiz(userId: string, b: { documentId?: string | undefined; courseId?: string | undefined; fromPage?: number | undefined; toPage?: number | undefined; count: number }) {
+  const src = b.documentId ? await documentSource(userId, { ...b, documentId: b.documentId }) : await courseSource(userId, { courseId: b.courseId ?? "", count: b.count });
+
+  // Quiz cần mô hình nên không có chế độ thay thế: nói rõ lý do (UC-04 luồng 2a).
+  const llm = getLlm();
+  if (!llm) throw new AppError(503, "llm_unavailable", "Chức năng quiz cần trợ lý AI, hiện chưa được bật.");
+  const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { llmConsentAt: true } });
+  if (!user.llmConsentAt) throw new AppError(403, "consent_required", "Bạn cần đồng ý gửi đoạn tài liệu cho nhà cung cấp AI trước khi tạo quiz.");
 
   let raw;
   try {
-    raw = await completeWithRetry(llm, { system: QUIZ_SYSTEM, user: buildQuizPrompt(passages, b.count), maxTokens: 2500 });
+    raw = await completeWithRetry(llm, { system: src.system, user: src.prompt, maxTokens: 2500 });
   } catch (e) {
     console.warn("quiz llm failed:", e instanceof Error ? e.message : "unknown"); // không ghi nội dung (NFR-08)
     throw new AppError(502, "llm_failed", "Không tạo được quiz lúc này. Hãy thử lại sau.");
   }
   const parsed = parseQuizJson(raw.text);
   if (!parsed) throw new AppError(502, "llm_bad_output", "Trợ lý AI trả về kết quả không đọc được. Hãy thử lại.");
-  const items = validateItems(parsed, new Set(passages.map((p) => p.page)), b.count);
+  const items = validateItems(parsed, new Set(src.docs.flatMap((d) => [...d.pages])), b.count);
   if (items.length === 0) throw new AppError(422, "no_valid_questions", "Không tạo được câu hỏi hợp lệ, hãy thử khoảng trang khác.");
+
+  // Tài liệu của câu: theo "doc" mô hình nêu nếu trang đó có trong tài liệu ấy, không thì tài liệu đầu tiên có trang đó.
+  const docOf = (it: { page: number; doc?: number | undefined }) => {
+    const named = it.doc ? src.docs[it.doc - 1] : undefined;
+    return (named?.pages.has(it.page) ? named : src.docs.find((d) => d.pages.has(it.page)))?.id ?? null;
+  };
 
   const quiz = await prisma.$transaction(async (tx) => {
     const q = await tx.quiz.create({
       data: {
         userId,
-        documentId: doc.id,
-        courseId: doc.courseId,
-        fromPage,
-        toPage,
+        ...src.quiz,
         count: items.length,
-        items: { create: items.map((it, position) => ({ position, documentId: doc.id, question: it.question, options: it.options, correctIndex: it.correctIndex, explanation: it.explanation, page: it.page })) },
+        items: { create: items.map((it, position) => ({ position, documentId: docOf(it), question: it.question, options: it.options, correctIndex: it.correctIndex, explanation: it.explanation, page: it.page })) },
       },
       include: { items: { orderBy: { position: "asc" } } },
     });
@@ -96,13 +136,14 @@ export async function listQuizzes(userId: string) {
     where: { userId },
     orderBy: { createdAt: "desc" },
     take: 100,
-    include: { document: { select: { name: true } }, attempts: { select: { score: true, finishedAt: true } } },
+    include: { document: { select: { name: true } }, course: { select: { name: true } }, attempts: { select: { score: true, finishedAt: true } } },
   });
   return rows.map((q) => {
     const done = q.attempts.filter((a) => a.finishedAt && a.score !== null);
     return {
       ...quizView(q),
       documentName: q.document?.name ?? null,
+      courseName: q.course?.name ?? null,
       attemptCount: done.length,
       bestScore: done.length ? Math.max(...done.map((a) => a.score ?? 0)) : null,
     };
@@ -149,6 +190,8 @@ function attemptView(a: AttemptFull) {
   const byItem = new Map(a.answers.map((x) => [x.itemId, x]));
   return {
     ...attemptSummary(a),
+    // Lượt đang làm: số câu hiện còn (câu bị báo lỗi đã bị loại); lượt đã xong giữ số câu lúc chốt.
+    total: reveal ? a.total : a.quiz.items.length,
     items: a.quiz.items.map((it) => {
       const ans = byItem.get(it.id);
       return {
@@ -195,13 +238,49 @@ export async function finishAttempt(userId: string, attemptId: string) {
   const a = await prisma.quizAttempt.findFirst({ where: { id: attemptId, userId } });
   if (!a) throw notFound("lượt làm bài");
   if (!a.finishedAt) {
-    const score = await prisma.attemptAnswer.count({ where: { attemptId, isCorrect: true } });
+    // Câu đã bị báo lỗi không tính vào điểm và tổng (FR-QZ-07).
+    const [score, total] = await Promise.all([
+      prisma.attemptAnswer.count({ where: { attemptId, isCorrect: true, item: { flagged: false } } }),
+      prisma.quizItem.count({ where: { quizId: a.quizId, flagged: false } }),
+    ]);
     const now = new Date();
     // Điều kiện finishedAt = null để hai lần kết thúc đồng thời không ghi đè nhau.
     await prisma.quizAttempt.updateMany({
       where: { id: attemptId, userId, finishedAt: null },
-      data: { score, finishedAt: now, durationS: Math.max(0, Math.round((now.getTime() - a.startedAt.getTime()) / 1000)) },
+      data: { score, total, finishedAt: now, durationS: Math.max(0, Math.round((now.getTime() - a.startedAt.getTime()) / 1000)) },
     });
   }
   return getAttempt(userId, attemptId);
+}
+
+// ---------- báo câu có vấn đề, làm lại câu sai (E4) ----------
+
+/** Báo (hoặc bỏ báo) câu hỏi sai/khó hiểu: câu bị báo không xuất hiện ở các lần làm sau (FR-QZ-07). */
+export async function flagItem(userId: string, quizId: string, itemId: string, flagged: boolean) {
+  const { count } = await prisma.quizItem.updateMany({ where: { id: itemId, quizId, quiz: { userId } }, data: { flagged } });
+  if (count === 0) throw notFound("câu hỏi");
+  return { flagged };
+}
+
+/** Tạo bài quiz mới từ các câu làm sai hoặc bỏ trống của một lượt đã kết thúc; không gọi AI nên không cần đồng ý gửi dữ liệu. */
+export async function retryWrong(userId: string, attemptId: string) {
+  const a = await loadAttempt(userId, attemptId);
+  if (!a.finishedAt) throw new AppError(409, "attempt_not_finished", "Hãy hoàn thành lượt làm bài trước khi làm lại câu sai.");
+  const correct = new Set(a.answers.filter((x) => x.isCorrect).map((x) => x.itemId));
+  const wrong = a.quiz.items.filter((it) => !correct.has(it.id));
+  if (wrong.length === 0) throw new AppError(409, "nothing_wrong", "Bạn đã trả lời đúng hết, không có câu nào cần làm lại.");
+  const src = await prisma.quiz.findUniqueOrThrow({ where: { id: a.quizId } });
+  const q = await prisma.quiz.create({
+    data: {
+      userId,
+      documentId: src.documentId,
+      courseId: src.courseId,
+      fromPage: src.fromPage,
+      toPage: src.toPage,
+      count: wrong.length,
+      items: { create: wrong.map((it, position) => ({ position, documentId: it.documentId, question: it.question, options: it.options, correctIndex: it.correctIndex, explanation: it.explanation, page: it.page })) },
+    },
+    include: { items: { orderBy: { position: "asc" } } },
+  });
+  return { ...quizView(q), items: q.items.map(itemPublic) };
 }

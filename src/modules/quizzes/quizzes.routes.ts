@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { authUserId, requireAuth } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
-import { answerBody, createQuizBody, idParam } from "./quizzes.schema.js";
+import { answerBody, createQuizBody, flagBody, idParam } from "./quizzes.schema.js";
 import * as svc from "./quizzes.service.js";
 
 const id = (req: Request, name = "id") => {
@@ -29,6 +29,9 @@ quizzesRouter.get("/", async (req, res) => {
 quizzesRouter.get("/:id", async (req, res) => {
   res.json(await svc.getQuiz(authUserId(req), id(req)));
 });
+quizzesRouter.put("/:id/items/:itemId/flag", async (req, res) => {
+  res.json(await svc.flagItem(authUserId(req), id(req), id(req, "itemId"), flagBody.parse(req.body).flagged));
+});
 quizzesRouter.post("/:id/attempts", async (req, res) => {
   const { created, attempt } = await svc.startAttempt(authUserId(req), id(req));
   res.status(created ? 201 : 200).json(attempt);
@@ -46,4 +49,7 @@ attemptsRouter.put("/:id/answers/:itemId", async (req, res) => {
 });
 attemptsRouter.post("/:id/finish", async (req, res) => {
   res.json(await svc.finishAttempt(authUserId(req), id(req)));
+});
+attemptsRouter.post("/:id/retry-wrong", async (req, res) => {
+  res.status(201).json(await svc.retryWrong(authUserId(req), id(req)));
 });

@@ -3,7 +3,7 @@ import { env } from "../../config/env.js";
 import { authUserId, requireAuth } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error.js";
 import { rateLimit } from "../../middleware/rateLimit.js";
-import { askBody, createConversationBody, idParam, listQuery, renameBody } from "./conversations.schema.js";
+import { askBody, createConversationBody, feedbackBody, idParam, listQuery, renameBody } from "./conversations.schema.js";
 import * as svc from "./conversations.service.js";
 
 const router = Router();
@@ -45,5 +45,11 @@ router.post(
     res.json(await svc.ask(authUserId(req), idOf(req), askBody.parse(req.body).question));
   },
 );
+
+router.put("/:id/messages/:messageId/feedback", async (req, res) => {
+  const m = idParam.safeParse(req.params["messageId"]);
+  if (!m.success) throw new AppError(404, "not_found", "Không tìm thấy câu trả lời.");
+  res.json(await svc.setFeedback(authUserId(req), idOf(req), m.data, feedbackBody.parse(req.body).value));
+});
 
 export default router;
