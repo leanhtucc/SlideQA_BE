@@ -1,6 +1,9 @@
 # pdfjs-dist 6 cần Node >= 22.13
 FROM node:22-alpine
 
+# Prisma trên Alpine cần openssl để chọn đúng engine
+RUN apk add --no-cache openssl
+
 # Tạo user non-root
 RUN addgroup -S app && adduser -S app -G app
 
