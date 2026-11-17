@@ -41,7 +41,7 @@ const schema = z.object({
 
   /** Khóa Google AI Studio (gói miễn phí dùng được); chỉ đặt trong biến môi trường của máy chủ */
   GEMINI_API_KEY: z.string().optional(),
-  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_MODEL: z.string().default("gemini-3.1-flash-lite"),
   GEMINI_BASE_URL: z.string().default("https://generativelanguage.googleapis.com"),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
