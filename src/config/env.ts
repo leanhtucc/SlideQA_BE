@@ -9,6 +9,12 @@ const schema = z.object({
   WEB_URL: z.string().default("http://localhost:5173"),
   /** OAuth client ID (công khai, không phải bí mật) cho đăng nhập Google; để trống = tắt tính năng */
   GOOGLE_CLIENT_ID: z.string().optional(),
+  /** `brevo` = gửi thư thật qua Brevo; `log` = chỉ ghi ra console (phát triển/test) */
+  MAIL_PROVIDER: z.enum(["log", "brevo"]).default("log"),
+  BREVO_API_KEY: z.string().optional(),
+  /** Địa chỉ người gửi, phải là địa chỉ đã xác minh trong Brevo */
+  MAIL_FROM_EMAIL: z.string().optional(),
+  MAIL_FROM_NAME: z.string().default("Slide QA"),
   RESET_TTL_MINUTES: z.coerce.number().int().positive().default(30),
   RESET_RATE_MAX: z.coerce.number().int().positive().default(5),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),

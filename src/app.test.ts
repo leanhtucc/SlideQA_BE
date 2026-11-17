@@ -7,6 +7,8 @@ process.env["DATABASE_URL"] = "postgresql://test:test@localhost:5432/test";
 process.env["JWT_ACCESS_SECRET"] = "test-secret-test-secret-test-secret-123";
 process.env["BCRYPT_ROUNDS"] = "4";
 process.env["ANTHROPIC_API_KEY"] = ""; // rỗng (không xóa) để dotenv không nạp khóa thật từ .env
+process.env["LLM_PROVIDER"] = "anthropic"; // .env của máy có thể đặt gemini/mock
+process.env["GEMINI_API_KEY"] = "";
 const { app } = await import("./app.js");
 
 test("health báo ok và AI tắt khi không có khóa", async () => {
