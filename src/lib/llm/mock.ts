@@ -24,7 +24,10 @@ function mockQuiz(user: string): string {
 export const mockLlm: LlmClient = {
   async complete({ system, user }) {
     let text: string;
-    if (system.includes("trắc nghiệm")) {
+    if (system.includes("viết lại câu hỏi nối tiếp")) {
+      // Mock không hiểu ngữ cảnh: trả lại nguyên câu nối tiếp (đủ để chạy thử luồng, không làm hỏng tìm kiếm).
+      text = (/CÂU HỎI NỐI TIẾP: (.*)$/.exec(user)?.[1] ?? "").trim();
+    } else if (system.includes("trắc nghiệm")) {
       text = mockQuiz(user);
     } else {
       const first = (/\[1\][^\n]*\n([^\n]+)/.exec(user)?.[1] ?? "").slice(0, 160);

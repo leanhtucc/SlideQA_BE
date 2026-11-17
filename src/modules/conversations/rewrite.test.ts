@@ -1,6 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { cleanRewrite, fallbackQuery, HISTORY_MESSAGES, needsRewrite, toHistory } from "./rewrite.js";
+import { mockLlm } from "../../lib/llm/mock.js";
+import { buildRewritePrompt, cleanRewrite, fallbackQuery, HISTORY_MESSAGES, needsRewrite, REWRITE_SYSTEM, toHistory } from "./rewrite.js";
 
 test("needsRewrite: câu ngắn hoặc có từ tham chiếu (có dấu hay không dấu) cần viết lại", () => {
   for (const q of ["Nó dùng khi nào?", "no dung khi nao", "Còn cái kia?", "Giải thích thêm đi", "Ví dụ nữa?", "Nó khác gì so với XOR trong tài liệu này?"]) {
@@ -35,4 +36,9 @@ test("fallbackQuery: ghép câu hỏi gần nhất của người học; chưa c
   ];
   assert.equal(fallbackQuery(h, "Chúng dùng để làm gì?"), "Pool và lane là gì? Chúng dùng để làm gì?");
   assert.equal(fallbackQuery([], "Chúng dùng để làm gì?"), "Chúng dùng để làm gì?");
+});
+
+test("mock LLM: yêu cầu viết lại trả lại đúng câu nối tiếp (không trả câu rỗng nghĩa làm hỏng tìm kiếm)", async () => {
+  const r = await mockLlm.complete({ system: REWRITE_SYSTEM, user: buildRewritePrompt([{ role: "user", content: "Pool và lane là gì?" }], "Chúng dùng để làm gì?"), maxTokens: 100 });
+  assert.equal(cleanRewrite(r.text), "Chúng dùng để làm gì?");
 });
