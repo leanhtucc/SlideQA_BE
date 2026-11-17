@@ -7,6 +7,8 @@ const schema = z.object({
   DATABASE_URL: z.string().min(1),
   /** Địa chỉ web, dùng dựng liên kết trong email (đặt lại mật khẩu) */
   WEB_URL: z.string().default("http://localhost:5173"),
+  /** OAuth client ID (công khai, không phải bí mật) cho đăng nhập Google; để trống = tắt tính năng */
+  GOOGLE_CLIENT_ID: z.string().optional(),
   RESET_TTL_MINUTES: z.coerce.number().int().positive().default(30),
   RESET_RATE_MAX: z.coerce.number().int().positive().default(5),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),

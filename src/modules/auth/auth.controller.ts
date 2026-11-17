@@ -1,5 +1,5 @@
 import type { Request, RequestHandler } from "express";
-import { forgotBody, loginBody, registerBody, resetBody, tokenBody } from "./auth.schema.js";
+import { forgotBody, googleBody, loginBody, registerBody, resetBody, tokenBody } from "./auth.schema.js";
 import * as svc from "./auth.service.js";
 
 const device = (req: Request) => req.header("user-agent")?.slice(0, 200) ?? null;
@@ -11,6 +11,11 @@ export const register: RequestHandler = async (req, res) => {
 
 export const login: RequestHandler = async (req, res) => {
   res.json(await svc.login(loginBody.parse(req.body), device(req)));
+};
+
+export const google: RequestHandler = async (req, res) => {
+  const b = googleBody.parse(req.body);
+  res.json(await svc.googleLogin(b.credential, b.acceptTerms, device(req)));
 };
 
 export const refresh: RequestHandler = async (req, res) => {

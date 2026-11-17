@@ -24,7 +24,7 @@ router.post("/me/password", requireAuth, async (req, res) => {
   res.status(204).end();
 });
 router.delete("/me", requireAuth, async (req, res) => {
-  await deleteAccount(authUserId(req), deleteAccountBody.parse(req.body).password);
+  await deleteAccount(authUserId(req), deleteAccountBody.parse(req.body));
   res.status(204).end();
 });
 

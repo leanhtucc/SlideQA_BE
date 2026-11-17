@@ -1,5 +1,6 @@
 import { Prisma, type User } from "@prisma/client";
 import { env } from "../../config/env.js";
+import { verifyGoogleToken, type GoogleIdentity } from "../../lib/google/index.js";
 import { sendMail } from "../../lib/mail/index.js";
 import { storage } from "../../lib/storage/index.js";
 import { AppError } from "../../middleware/error.js";
@@ -13,6 +14,8 @@ export const publicUser = (u: User) => ({
   displayName: u.displayName,
   role: u.role,
   llmConsentAt: u.llmConsentAt,
+  /** false với tài khoản chỉ dùng Google: web ẩn mục đổi mật khẩu và đổi cách xác nhận khi xóa tài khoản */
+  hasPassword: u.passwordHash !== null,
 });
 
 async function issueTokens(userId: string, role: User["role"], device: string | null) {
@@ -58,6 +61,43 @@ export async function login(input: { email: string; password: string }, device: 
   const ok = await verifyPassword(input.password, user?.passwordHash ?? DUMMY_HASH);
   if (!user || !user.passwordHash || !ok) {
     throw new AppError(401, "invalid_credentials", "Email hoặc mật khẩu chưa đúng.");
+  }
+  if (user.status === "locked") throw new AppError(403, "account_locked", "Tài khoản đã bị khóa.");
+  return { user: publicUser(user), ...(await issueTokens(user.id, user.role, device)) };
+}
+
+/**
+ * Đăng nhập bằng Google (ID token). Thứ tự: đã gắn googleId → đăng nhập; trùng email → gắn googleId; còn lại → tạo mới (cần acceptTerms).
+ * Gắn vào tài khoản email có sẵn thì xóa mật khẩu cũ và thu hồi mọi phiên: đăng ký thường không xác minh email, nên người
+ * chiếm email trước đó không được giữ lối vào. Chủ thật vừa chứng minh quyền sở hữu email qua Google, và đặt lại mật khẩu bằng "Quên mật khẩu".
+ */
+export async function googleLogin(credential: string, acceptTerms: boolean | undefined, device: string | null) {
+  if (!env.GOOGLE_CLIENT_ID) throw new AppError(503, "google_unavailable", "Đăng nhập bằng Google chưa được bật.");
+  let id: GoogleIdentity;
+  try {
+    id = await verifyGoogleToken(credential);
+  } catch {
+    throw new AppError(401, "invalid_google_token", "Không xác thực được tài khoản Google, hãy thử lại.");
+  }
+  if (!id.emailVerified) throw new AppError(403, "google_email_unverified", "Email của tài khoản Google này chưa được xác minh.");
+
+  let user = await prisma.user.findUnique({ where: { googleId: id.sub } });
+  if (!user) {
+    const byEmail = await prisma.user.findUnique({ where: { email: id.email } });
+    if (byEmail) {
+      if (byEmail.googleId && byEmail.googleId !== id.sub) throw new AppError(409, "email_taken", "Email này đã gắn với một tài khoản Google khác.");
+      user = await prisma.$transaction(async (tx) => {
+        await revokeAllSessions(byEmail.id, tx);
+        return tx.user.update({ where: { id: byEmail.id }, data: { googleId: id.sub, passwordHash: null } });
+      });
+    } else {
+      if (acceptTerms !== true) {
+        throw new AppError(409, "terms_required", "Bạn cần đồng ý Điều khoản sử dụng và Chính sách bảo vệ dữ liệu cá nhân để tạo tài khoản.");
+      }
+      user = await prisma.user.create({
+        data: { email: id.email, googleId: id.sub, displayName: (id.name ?? id.email.split("@")[0] ?? "Người học").slice(0, 80), termsVersion: env.TERMS_VERSION, termsAcceptedAt: new Date() },
+      });
+    }
   }
   if (user.status === "locked") throw new AppError(403, "account_locked", "Tài khoản đã bị khóa.");
   return { user: publicUser(user), ...(await issueTokens(user.id, user.role, device)) };
@@ -148,8 +188,15 @@ export async function updateProfile(userId: string, displayName: string) {
 }
 
 /** Xóa tài khoản: xóa hàng trong DB (cascade) rồi xóa tệp PDF gốc. Cần mật khẩu để xác nhận. */
-export async function deleteAccount(userId: string, password: string) {
-  await verifyCurrentPassword(userId, password);
+export async function deleteAccount(userId: string, confirm: { password?: string | undefined; email?: string | undefined }) {
+  const user = await prisma.user.findUnique({ where: { id: userId } });
+  if (!user) throw new AppError(401, "unauthorized", "Bạn cần đăng nhập.");
+  if (user.passwordHash) {
+    await verifyCurrentPassword(userId, confirm.password ?? "");
+  } else if (confirm.email !== user.email) {
+    // Tài khoản chỉ dùng Google không có mật khẩu: bắt gõ lại đúng email để tránh xóa nhầm.
+    throw new AppError(403, "wrong_confirmation", "Email xác nhận chưa đúng.");
+  }
   const docs = await prisma.document.findMany({ where: { userId }, select: { storageKey: true } });
   await prisma.user.delete({ where: { id: userId } });
   // Tệp xóa sau DB: nếu lỗi giữa chừng thì chỉ còn tệp mồ côi, không còn dữ liệu gắn với người dùng.

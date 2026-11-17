@@ -25,6 +25,15 @@ export const changePasswordBody = z.object({ currentPassword: z.string().min(1, 
 
 export const profileBody = z.object({ displayName: z.string().trim().min(1, "Hãy nhập tên hiển thị.").max(80, "Tên hiển thị tối đa 80 ký tự.") });
 
-export const deleteAccountBody = z.object({ password: z.string().min(1, "Hãy nhập mật khẩu để xác nhận.") });
+/** Tài khoản có mật khẩu xác nhận bằng mật khẩu; tài khoản chỉ dùng Google (chưa có mật khẩu) xác nhận bằng cách gõ lại email. */
+export const deleteAccountBody = z
+  .object({ password: z.string().optional(), email: z.string().trim().toLowerCase().optional() })
+  .refine((b) => b.password || b.email, { message: "Hãy nhập mật khẩu hoặc email để xác nhận.", path: ["password"] });
+
+export const googleBody = z.object({
+  credential: z.string().min(1, "Thiếu thông tin đăng nhập Google."),
+  /** Bắt buộc là true khi tạo tài khoản mới bằng Google (cần đồng ý Điều khoản và Chính sách) */
+  acceptTerms: z.boolean().optional(),
+});
 
 export const tokenBody = z.object({ refreshToken: z.string().min(1) });
