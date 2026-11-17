@@ -21,7 +21,8 @@ export class SupabaseStorage implements Storage {
   }
 
   private headers(extra: Record<string, string> = {}) {
-    return { authorization: `Bearer ${this.key}`, apikey: this.key, ...extra };
+    // Khóa kiểu mới (sb_secret_…) không phải JWT: chỉ đi trong `apikey`, cổng của Supabase tự cấp quyền. Khóa legacy service_role là JWT nên gửi cả hai.
+    return { ...(this.key.startsWith("sb_") ? {} : { authorization: `Bearer ${this.key}` }), apikey: this.key, ...extra };
   }
 
   async put(key: string, fromPath: string) {

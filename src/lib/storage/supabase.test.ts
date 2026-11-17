@@ -57,3 +57,12 @@ test("remove: không lỗi nếu tệp không còn; lỗi khác thì ném", asyn
   stub(() => new Response("{}", { status: 500 }));
   await assert.rejects(s.remove("u1/a.pdf"));
 });
+
+test("khóa kiểu mới sb_secret_: chỉ gửi apikey, không gửi Authorization Bearer", async () => {
+  const sb = new SupabaseStorage("https://x.supabase.co", "sb_secret_khong-phai-khoa-that", "documents");
+  stub(() => new Response(null, { status: 200, headers: { "content-length": "5" } }));
+  await sb.size("u1/a.pdf");
+  const h = calls[0]?.init.headers as Record<string, string>;
+  assert.equal(h["apikey"], "sb_secret_khong-phai-khoa-that");
+  assert.equal(h["authorization"], undefined);
+});
