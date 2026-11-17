@@ -5,6 +5,7 @@ import { env } from "./config/env.js";
 import { errorHandler, notFound } from "./middleware/error.js";
 import authRouter from "./modules/auth/auth.routes.js";
 import coursesRouter from "./modules/courses/courses.routes.js";
+import flashcardsRouter from "./modules/flashcards/flashcards.routes.js";
 import conversationsRouter from "./modules/conversations/conversations.routes.js";
 import documentsRouter from "./modules/documents/documents.routes.js";
 import meRouter from "./modules/me/me.routes.js";
@@ -28,6 +29,7 @@ app.use("/api/v1", meRouter);
 app.use("/api/v1/courses", coursesRouter);
 app.use("/api/v1/documents", documentsRouter);
 app.use("/api/v1/conversations", conversationsRouter);
+app.use("/api/v1/flashcards", flashcardsRouter);
 app.use("/api/v1/quizzes", quizzesRouter);
 app.use("/api/v1/attempts", attemptsRouter);
 
