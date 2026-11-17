@@ -217,6 +217,11 @@ test("tải trùng nội dung: cùng content_hash (để P3 hỏi người dùng
   const pdf = makePdf(["giong nhau"]);
   const a = (await upload(u, cid, pdf, "a.pdf")).body.id as string;
   const b = (await upload(u, cid, pdf, "b.pdf")).body.id as string;
+  const dup = (await upload(u, cid, pdf, "c.pdf")).body;
+  assert.deepEqual(dup.duplicateOf, { id: a, name: "a.pdf" });
+  assert.equal((await upload(u, cid, makePdf(["khac"]), "d.pdf")).body.duplicateOf, null);
+  const other = await signup(); // người khác tải cùng tệp thì không phải trùng
+  assert.equal((await upload(other, await course(other), pdf)).body.duplicateOf, null);
   const rows = await prisma.document.findMany({ where: { id: { in: [a, b] } } });
   assert.equal(rows[0]?.contentHash, rows[1]?.contentHash);
   assert.match(rows[0]?.contentHash ?? "", /^[0-9a-f]{64}$/);

@@ -23,12 +23,14 @@ const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
 /** Thử tối đa 3 lần (1 + 2 lần thử lại), chờ tăng dần; lỗi không tạm thời thì dừng ngay (NFR-14). */
 export async function completeWithRetry(client: LlmClient, req: LlmRequest): Promise<LlmResult> {
+  let started = false; // đã gửi chữ ra ngoài thì không thử lại, kẻo người dùng thấy câu bị lặp
+  const onDelta = req.onDelta && ((t: string) => ((started = true), req.onDelta?.(t)));
   for (let attempt = 0; ; attempt++) {
     try {
-      return await client.complete(req);
+      return await client.complete({ ...req, ...(onDelta ? { onDelta } : {}) });
     } catch (e) {
       const retryable = e instanceof LlmError ? e.retryable : true;
-      if (!retryable || attempt >= 2) throw e;
+      if (!retryable || started || attempt >= 2) throw e;
       await sleep(env.LLM_RETRY_BASE_MS * (attempt === 0 ? 1 : 3));
     }
   }

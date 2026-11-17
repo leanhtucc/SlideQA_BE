@@ -85,11 +85,12 @@ export async function createDocument(userId: string, courseId: string, file: { p
   const key = `${userId}/${randomUUID()}.pdf`; // khóa luôn do server sinh (NFR-10)
   await storage.put(key, file.path);
   try {
-    const doc = await prisma.document.create({
-      data: { userId, courseId, name, sizeBytes: file.size, contentHash: await sha256File(file.path), storageKey: key },
-    });
+    const contentHash = await sha256File(file.path);
+    // E7: cùng nội dung đã có (của chính người dùng): vẫn nhận tệp, chỉ báo để giao diện hỏi người dùng giữ hay bỏ.
+    const same = await prisma.document.findFirst({ where: { userId, contentHash }, orderBy: { createdAt: "asc" }, select: { id: true, name: true } });
+    const doc = await prisma.document.create({ data: { userId, courseId, name, sizeBytes: file.size, contentHash, storageKey: key } });
     await enqueueExtract(doc.id);
-    return view(doc);
+    return { ...view(doc), duplicateOf: same };
   } catch (e) {
     await storage.remove(key);
     throw e;

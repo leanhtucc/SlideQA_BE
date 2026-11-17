@@ -42,7 +42,27 @@ router.post(
   "/:id/messages",
   rateLimit({ windowMs: 3_600_000, max: env.ASK_RATE_MAX, key: (r) => r.auth?.userId ?? r.ip ?? "unknown" }),
   async (req, res) => {
-    res.json(await svc.ask(authUserId(req), idOf(req), askBody.parse(req.body).question));
+    const question = askBody.parse(req.body).question;
+    if (req.accepts(["json", "text/event-stream"]) !== "text/event-stream") return void res.json(await svc.ask(authUserId(req), idOf(req), question));
+    // SSE (E7): header chỉ gửi khi có chữ đầu tiên, nên lỗi trước đó vẫn là JSON thường; không có chữ nào (không qua AI) thì trả JSON như cũ.
+    let open = false;
+    const send = (event: string, data: unknown) => res.write(`event: ${event}\ndata: ${JSON.stringify(data)}\n\n`);
+    try {
+      const msg = await svc.ask(authUserId(req), idOf(req), question, (text) => {
+        if (!open) {
+          open = true;
+          res.status(200).set({ "Content-Type": "text/event-stream", "Cache-Control": "no-cache, no-transform", "X-Accel-Buffering": "no" }).flushHeaders();
+        }
+        send("delta", { text });
+      });
+      if (!open) return void res.json(msg);
+      send("done", msg);
+      res.end();
+    } catch (e) {
+      if (!open) throw e;
+      send("error", { message: e instanceof AppError ? e.message : "Có lỗi xảy ra, hãy thử lại." });
+      res.end();
+    }
   },
 );
 

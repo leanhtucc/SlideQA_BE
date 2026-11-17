@@ -2,6 +2,8 @@ export interface LlmRequest {
   system: string;
   user: string;
   maxTokens: number;
+  /** Có thì trả lời dạng dòng chảy: gọi với từng đoạn chữ ngay khi có (E7) */
+  onDelta?: (text: string) => void;
 }
 export interface LlmResult {
   text: string;

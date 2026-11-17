@@ -129,7 +129,7 @@ const dropInvalidCitations = (text: string, max: number) => text.replace(/\[(\d+
 const sourceRows = (hits: SearchHit[]) =>
   hits.map((h, i) => ({ n: i + 1, chunkId: h.chunkId, documentId: h.documentId, documentName: h.documentName, page: h.page, snippet: h.text.slice(0, 400) }));
 
-export async function ask(userId: string, conversationId: string, question: string) {
+export async function ask(userId: string, conversationId: string, question: string, onDelta?: (text: string) => void) {
   const conv = await prisma.conversation.findFirst({ where: { id: conversationId, userId } });
   if (!conv) throw notFound();
 
@@ -188,7 +188,7 @@ export async function ask(userId: string, conversationId: string, question: stri
         const context = hits.map((h, i) => `[${i + 1}] ${h.documentName}, trang ${h.page}:\n${h.text}`).join("\n\n");
         const past = history.length > 0 ? `LỊCH SỬ HỘI THOẠI (chỉ để hiểu câu hỏi nối tiếp):\n${historyBlock(history)}\n\n` : "";
         const ask = rewritten ? `${question}\n(Câu hỏi đầy đủ: ${rewritten})` : question;
-        const r = await completeWithRetry(llm, { system: ASK_SYSTEM, user: `${past}NGỮ CẢNH:\n${context}\n\nCÂU HỎI: ${ask}`, maxTokens: 1200 });
+        const r = await completeWithRetry(llm, { system: ASK_SYSTEM, user: `${past}NGỮ CẢNH:\n${context}\n\nCÂU HỎI: ${ask}`, maxTokens: 1200, ...(onDelta ? { onDelta } : {}) });
         mode = "llm";
         answer = dropInvalidCitations(r.text, hits.length);
         tokensIn += r.tokensIn;

@@ -22,7 +22,7 @@ function mockQuiz(user: string): string {
 
 /** Trợ lý giả cho phát triển/demo, không gọi mạng. Hỏi đáp: câu đầu của đoạn [1] kèm [1]. Quiz: xem mockQuiz. */
 export const mockLlm: LlmClient = {
-  async complete({ system, user }) {
+  async complete({ system, user, onDelta }) {
     let text: string;
     if (system.includes("viết lại câu hỏi nối tiếp")) {
       // Mock không hiểu ngữ cảnh: trả lại nguyên câu nối tiếp (đủ để chạy thử luồng, không làm hỏng tìm kiếm).
@@ -33,6 +33,7 @@ export const mockLlm: LlmClient = {
       const first = (/\[1\][^\n]*\n([^\n]+)/.exec(user)?.[1] ?? "").slice(0, 160);
       text = first ? `Theo tài liệu: ${first} [1]` : "Tài liệu không có thông tin này.";
     }
+    if (onDelta) for (const w of text.match(/S+s*/g) ?? []) onDelta(w);
     return { text, tokensIn: Math.ceil(user.length / 4), tokensOut: Math.ceil(text.length / 4) };
   },
 };
