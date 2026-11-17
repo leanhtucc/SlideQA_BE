@@ -33,11 +33,15 @@ const schema = z.object({
   /** Dung lượng tối đa mỗi tệp tải lên: 50 MB (FR-DOC-01) */
   MAX_UPLOAD_BYTES: z.coerce.number().int().positive().default(50 * 1024 * 1024),
 
+  /** Khóa Google AI Studio (gói miễn phí dùng được); chỉ đặt trong biến môi trường của máy chủ */
+  GEMINI_API_KEY: z.string().optional(),
+  GEMINI_MODEL: z.string().default("gemini-2.5-flash"),
+  GEMINI_BASE_URL: z.string().default("https://generativelanguage.googleapis.com"),
   ANTHROPIC_API_KEY: z.string().optional(),
   ANTHROPIC_MODEL: z.string().default("claude-sonnet-5-5"),
   ANTHROPIC_BASE_URL: z.string().default("https://api.anthropic.com"),
   /** `mock` = trợ lý giả trả lời từ đoạn đầu của ngữ cảnh, để phát triển web mà không cần khóa API */
-  LLM_PROVIDER: z.enum(["anthropic", "mock"]).default("anthropic"),
+  LLM_PROVIDER: z.enum(["anthropic", "gemini", "mock"]).default("anthropic"),
   LLM_TIMEOUT_MS: z.coerce.number().int().positive().default(30_000),
   /** Chờ giữa các lần thử lại: base, 3×base (tối đa 2 lần thử lại, NFR-14) */
   LLM_RETRY_BASE_MS: z.coerce.number().int().min(0).default(500),
@@ -57,5 +61,6 @@ if (!parsed.success) {
 export const env = {
   ...parsed.data,
   CORS_ORIGINS: parsed.data.CORS_ORIGIN.split(",").map((s) => s.trim()).filter(Boolean),
-  llmEnabled: parsed.data.LLM_PROVIDER === "mock" || Boolean(parsed.data.ANTHROPIC_API_KEY),
+  llmEnabled:
+    parsed.data.LLM_PROVIDER === "mock" || Boolean(parsed.data.LLM_PROVIDER === "gemini" ? parsed.data.GEMINI_API_KEY : parsed.data.ANTHROPIC_API_KEY),
 };

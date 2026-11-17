@@ -1,5 +1,6 @@
 import { env } from "../../config/env.js";
 import { anthropic } from "./anthropic.js";
+import { gemini } from "./gemini.js";
 import { mockLlm } from "./mock.js";
 import type { LlmClient, LlmRequest, LlmResult } from "./types.js";
 import { LlmError } from "./types.js";
@@ -16,6 +17,7 @@ export const setLlmClient = (c: LlmClient | null | undefined) => {
 export function getLlm(): LlmClient | null {
   if (override !== undefined) return override;
   if (env.LLM_PROVIDER === "mock") return mockLlm;
+  if (env.LLM_PROVIDER === "gemini") return env.GEMINI_API_KEY ? gemini : null;
   return env.ANTHROPIC_API_KEY ? anthropic : null;
 }
 
