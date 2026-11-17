@@ -54,3 +54,8 @@ test("stream: dùng streamGenerateContent?alt=sse, phát từng đoạn, kể c�
   assert.deepEqual(got, ["Theo ", "tài liệu ", "[1]."]);
   assert.deepEqual(r, { text: "Theo tài liệu [1].", tokensIn: 20, tokensOut: 6 });
 });
+
+test("lỗi 404 model: log ghi lý do ngắn của Google (error.message), không ghi phần còn lại", async () => {
+  stub(() => new Response(JSON.stringify({ error: { code: 404, message: "models/xyz is not found for API version v1beta", status: "NOT_FOUND", details: ["noi dung bi mat"] } }), { status: 404 }));
+  await assert.rejects(gemini.complete(REQ), (e: Error) => e.message === "status 404 models/xyz is not found for API version v1beta");
+});

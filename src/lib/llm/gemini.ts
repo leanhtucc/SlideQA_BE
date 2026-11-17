@@ -32,7 +32,11 @@ export const gemini: LlmClient = {
     } catch {
       throw new LlmError("network or timeout", true);
     }
-    if (!res.ok) throw new LlmError(`status ${res.status}`, res.status >= 500 || res.status === 429 || res.status === 408);
+    if (!res.ok) {
+      // Chỉ lấy trường error.message của Google (vd "models/x is not found"), không ghi cả phản hồi: để log chỉ ra nguyên nhân cấu hình mà không lộ nội dung (NFR-08).
+      const why = ((await res.json().catch(() => null)) as { error?: { message?: unknown } } | null)?.error?.message;
+      throw new LlmError(`status ${res.status}${typeof why === "string" ? ` ${why.slice(0, 160)}` : ""}`, res.status >= 500 || res.status === 429 || res.status === 408);
+    }
 
     if (!onDelta) {
       const j = (await res.json().catch(() => null)) as GeminiChunk | null;
