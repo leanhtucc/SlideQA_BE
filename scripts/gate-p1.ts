@@ -134,8 +134,9 @@ try {
   const quiz = await api("POST", "/quizzes", { token: tokA, json: { documentId: small.data["id"], count: 3 } });
   const quizOk = quiz.status === 201 && quiz.data["items"]?.length === 3 && !("correctIndex" in quiz.data["items"][0]);
   check("tạo quiz (mock) 3 câu, không lộ đáp án", quizOk, quizOk ? undefined : `HTTP ${quiz.status} ${quiz.data["error"]?.code ?? ""}`);
+  let att: Awaited<ReturnType<typeof api>> = { status: 0, data: {}, headers: new Headers(), raw: "" };
   if (quizOk) {
-    const att = await api("POST", `/quizzes/${quiz.data["id"]}/attempts`, { token: tokA });
+    att = await api("POST", `/quizzes/${quiz.data["id"]}/attempts`, { token: tokA });
     const first = quiz.data["items"][0];
     const ans = await api("PUT", `/attempts/${att.data["id"]}/answers/${first.id}`, { token: tokA, json: { chosenIndex: 0 } });
     check("chấm từng câu, trả đáp án + giải thích", ans.status === 200 && typeof ans.data["correctIndex"] === "number" && !!ans.data["explanation"]);
