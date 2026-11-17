@@ -110,12 +110,13 @@ test("chưa đồng ý gửi dữ liệu: không bao giờ gọi mô hình, tr�
   assert.equal(g.status, 200);
   assert.ok(g.body.llmConsentAt);
   assert.equal((await request(app).get("/api/v1/me").set(u.auth)).body.llmConsentAt !== null, true);
-  assert.equal((await ask(u, id, "gateway XOR")).body.mode, "llm");
+  // Mỗi lần hỏi một hội thoại mới: câu nối tiếp trong cùng hội thoại sẽ có thêm một lần gọi AI để viết lại (E3).
+  assert.equal((await ask(u, await newConv(u), "gateway XOR")).body.mode, "llm");
   assert.equal(f.calls.length, 1);
 
   const off = await request(app).put("/api/v1/me/llm-consent").set(u.auth).send({ granted: false });
   assert.equal(off.body.llmConsentAt, null);
-  assert.equal((await ask(u, id, "gateway XOR")).body.mode, "extractive");
+  assert.equal((await ask(u, await newConv(u), "gateway XOR")).body.mode, "extractive");
   assert.equal(f.calls.length, 1, "rút lại đồng ý thì ngừng gửi");
   assert.equal((await request(app).put("/api/v1/me/llm-consent").set(u.auth).send({})).status, 422);
 });
@@ -146,13 +147,13 @@ test("lỗi AI: thử lại tối đa 2 lần rồi trả extractive; lỗi tạ
 
   const flaky = fake((n) => (n < 3 ? Promise.reject(new LlmError("status 502", true)) : OK));
   setLlmClient(flaky.client);
-  const b = await ask(u, id, "gateway XOR");
+  const b = await ask(u, await newConv(u), "gateway XOR");
   assert.equal(b.body.mode, "llm");
   assert.equal(flaky.calls.length, 3);
 
   const bad = fake(() => Promise.reject(new LlmError("status 400", false)));
   setLlmClient(bad.client);
-  assert.equal((await ask(u, id, "gateway XOR")).body.mode, "extractive");
+  assert.equal((await ask(u, await newConv(u), "gateway XOR")).body.mode, "extractive");
   assert.equal(bad.calls.length, 1, "lỗi không tạm thời thì không thử lại");
 });
 

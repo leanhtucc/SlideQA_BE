@@ -210,6 +210,8 @@ model Message {
   /// 1 = hữu ích, -1 = không hữu ích (FR-ASK-08)
   feedback       Int?
   feedbackNote   String?      @map("feedback_note")
+  /// Câu hỏi nối tiếp đã được viết lại thành câu độc lập để tìm kiếm (chỉ khi AI viết lại; E3)
+  searchQuery    String?      @map("search_query")
   createdAt      DateTime     @default(now()) @map("created_at")
 
   conversation Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
