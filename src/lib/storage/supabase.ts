@@ -9,11 +9,16 @@ import type { Storage } from "./index.js";
  * shortcut: `put` đọc cả tệp vào bộ nhớ (tối đa 50 MB mỗi tệp); cần hơn thì chuyển sang tải lên dạng phân đoạn (TUS).
  */
 export class SupabaseStorage implements Storage {
+  private url: string;
+
   constructor(
-    private url: string,
+    url: string,
     private key: string,
     private bucket: string,
-  ) {}
+  ) {
+    // Chỉ lấy phần gốc (https://<mã>.supabase.co): trang Data API của Supabase hiển thị địa chỉ có đuôi /rest/v1, dán nguyên vào sẽ đi nhầm tới PostgREST (lỗi PGRST125).
+    this.url = new URL(url).origin;
+  }
 
   private endpoint(kind: "authenticated" | "object", key: string) {
     const path = key.split("/").map(encodeURIComponent).join("/");

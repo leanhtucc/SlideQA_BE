@@ -66,3 +66,10 @@ test("khóa kiểu mới sb_secret_: chỉ gửi apikey, không gửi Authorizat
   assert.equal(h["apikey"], "sb_secret_khong-phai-khoa-that");
   assert.equal(h["authorization"], undefined);
 });
+
+test("URL dán nhầm có đuôi /rest/v1/ vẫn gọi đúng cổng storage", async () => {
+  const sb = new SupabaseStorage("https://x.supabase.co/rest/v1/", "khoa", "documents");
+  stub(() => new Response(null, { status: 200, headers: { "content-length": "5" } }));
+  await sb.size("u1/a.pdf");
+  assert.equal(calls[0]?.url, "https://x.supabase.co/storage/v1/object/authenticated/documents/u1/a.pdf");
+});
