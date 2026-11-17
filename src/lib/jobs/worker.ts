@@ -44,7 +44,10 @@ export function startWorker(): () => void {
   let stopped = false;
   void (async () => {
     // Job "running" quá lâu là do tiến trình cũ chết giữa chừng: đưa về hàng đợi.
-    await prisma.$executeRaw`UPDATE jobs SET status = 'queued' WHERE status = 'running' AND updated_at < now() - interval '10 minutes'`;
+    // DB chưa sẵn sàng lúc khởi động không được làm sập cả API: vòng lặp bên dưới sẽ tự thử lại.
+    await prisma.$executeRaw`UPDATE jobs SET status = 'queued' WHERE status = 'running' AND updated_at < now() - interval '10 minutes'`.catch((e) =>
+      console.error("worker recover", e instanceof Error ? e.message : e),
+    );
     while (!stopped) {
       const did = await processNextJob().catch((e) => {
         console.error("worker", e instanceof Error ? e.message : e);
