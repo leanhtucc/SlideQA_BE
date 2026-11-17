@@ -124,7 +124,7 @@ try {
   const consent = await api("PUT", "/me/llm-consent", { token: tokA, json: { granted: true } });
   check("ghi đồng ý gửi dữ liệu cho AI", consent.status === 200 && !!consent.data["llmConsentAt"]);
   const ask = await time("ask_llm_mock", () => api("POST", `/conversations/${conv.data["id"]}/messages`, { token: tokA, json: { question: "gatezebra37 nói về gì" } }));
-  check("hỏi đáp mode llm (mock), nguồn đúng trang 37", ask.data["mode"] === "llm" && ask.data["sources"]?.[0]?.page === 37, `${timings["ask_llm_mock"]} ms`);
+  check("hỏi đáp mode llm (mock), nguồn đúng trang 37", ask.data["mode"] === "llm" && ask.data["sources"]?.[0]?.page === 37, `mode=${ask.data["mode"]}, ${timings["ask_llm_mock"]} ms`);
   const nomatch = await api("POST", `/conversations/${conv.data["id"]}/messages`, { token: tokA, json: { question: "công thức nấu phở bò" } });
   check("ngoài tài liệu → no-match, không có nguồn", nomatch.data["mode"] === "no-match" && nomatch.data["sources"]?.length === 0);
   const detail = await api("GET", `/conversations/${conv.data["id"]}`, { token: tokA });
@@ -132,13 +132,16 @@ try {
 
   // --- Quiz ---
   const quiz = await api("POST", "/quizzes", { token: tokA, json: { documentId: small.data["id"], count: 3 } });
-  check("tạo quiz (mock) 3 câu, không lộ đáp án", quiz.status === 201 && quiz.data["items"]?.length === 3 && !("correctIndex" in quiz.data["items"][0]));
-  const att = await api("POST", `/quizzes/${quiz.data["id"]}/attempts`, { token: tokA });
-  const first = quiz.data["items"][0];
-  const ans = await api("PUT", `/attempts/${att.data["id"]}/answers/${first.id}`, { token: tokA, json: { chosenIndex: 0 } });
-  check("chấm từng câu, trả đáp án + giải thích", ans.status === 200 && typeof ans.data["correctIndex"] === "number" && !!ans.data["explanation"]);
-  const fin = await api("POST", `/attempts/${att.data["id"]}/finish`, { token: tokA });
-  check("kết thúc: có điểm và tổng 3", fin.status === 200 && fin.data["total"] === 3 && typeof fin.data["score"] === "number", `điểm ${fin.data["score"]}/3`);
+  const quizOk = quiz.status === 201 && quiz.data["items"]?.length === 3 && !("correctIndex" in quiz.data["items"][0]);
+  check("tạo quiz (mock) 3 câu, không lộ đáp án", quizOk, quizOk ? undefined : `HTTP ${quiz.status} ${quiz.data["error"]?.code ?? ""}`);
+  if (quizOk) {
+    const att = await api("POST", `/quizzes/${quiz.data["id"]}/attempts`, { token: tokA });
+    const first = quiz.data["items"][0];
+    const ans = await api("PUT", `/attempts/${att.data["id"]}/answers/${first.id}`, { token: tokA, json: { chosenIndex: 0 } });
+    check("chấm từng câu, trả đáp án + giải thích", ans.status === 200 && typeof ans.data["correctIndex"] === "number" && !!ans.data["explanation"]);
+    const fin = await api("POST", `/attempts/${att.data["id"]}/finish`, { token: tokA });
+    check("kết thúc: có điểm và tổng 3", fin.status === 200 && fin.data["total"] === 3 && typeof fin.data["score"] === "number", `điểm ${fin.data["score"]}/3`);
+  }
 
   // --- Cách ly người dùng (NFR-07) ---
   const crossStatuses = await Promise.all([
