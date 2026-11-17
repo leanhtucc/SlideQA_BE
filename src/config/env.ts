@@ -24,6 +24,10 @@ const schema = z.object({
   /** Phiên bản điều khoản/chính sách người dùng đang đồng ý */
   TERMS_VERSION: z.string().default("2026-11"),
 
+  /** Supabase Storage (bucket riêng tư) cho PDF; đặt cả URL và khóa service_role thì dùng, không thì dùng thư mục cục bộ. Khóa là bí mật, chỉ ở biến môi trường của máy chủ */
+  SUPABASE_URL: z.string().optional(),
+  SUPABASE_SERVICE_KEY: z.string().optional(),
+  SUPABASE_BUCKET: z.string().default("documents"),
   /** Thư mục kho tệp PDF (kho cục bộ) */
   STORAGE_DIR: z.string().default("./data/files"),
   /** Dung lượng tối đa mỗi tệp tải lên: 50 MB (FR-DOC-01) */

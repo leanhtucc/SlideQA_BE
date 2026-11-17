@@ -3,6 +3,7 @@ import { copyFile, mkdir, rm, stat } from "node:fs/promises";
 import { dirname, resolve, sep } from "node:path";
 import type { Readable } from "node:stream";
 import { env } from "../../config/env.js";
+import { SupabaseStorage } from "./supabase.js";
 
 /** Kho tệp. Khóa luôn do server sinh (`<userId>/<uuid>.pdf`), không bao giờ lấy từ tên tệp người dùng (NFR-10). */
 export interface Storage {
@@ -45,5 +46,8 @@ export class LocalStorage implements Storage {
   }
 }
 
-// shortcut: chỉ có kho cục bộ; lát deploy (Q5) thêm bản Supabase Storage/S3 cùng interface.
-export const storage: Storage = new LocalStorage(env.STORAGE_DIR);
+// Cục bộ cho phát triển; Supabase Storage khi deploy (container mất đĩa mỗi lần triển khai lại).
+export const storage: Storage =
+  env.SUPABASE_URL && env.SUPABASE_SERVICE_KEY
+    ? new SupabaseStorage(env.SUPABASE_URL.replace(/\/+$/, ""), env.SUPABASE_SERVICE_KEY, env.SUPABASE_BUCKET)
+    : new LocalStorage(env.STORAGE_DIR);
