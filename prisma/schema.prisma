@@ -2,7 +2,7 @@
 // Quy ước: mọi bảng dữ liệu học tập đều có userId để lọc quyền (NFR-07); xóa User thì xóa hết (NFR-12).
 
 datasource db {
-  provider = "postgresql"
+  provider  = "postgresql"
   url       = env("DATABASE_URL")
   /// Kết nối trực tiếp (hoặc session pooler) cho migrate; cục bộ đặt bằng DATABASE_URL
   directUrl = env("DIRECT_URL")
@@ -78,15 +78,16 @@ model User {
   createdAt       DateTime   @default(now()) @map("created_at")
   updatedAt       DateTime   @updatedAt @map("updated_at")
 
-  refreshTokens RefreshToken[]
-  deviceTokens  DeviceToken[]
-  courses       Course[]
-  documents     Document[]
-  conversations Conversation[]
-  quizzes       Quiz[]
-  attempts      QuizAttempt[]
-  flashcards    Flashcard[]
-  usageLogs     UsageLog[]
+  refreshTokens  RefreshToken[]
+  passwordResets PasswordReset[]
+  deviceTokens   DeviceToken[]
+  courses        Course[]
+  documents      Document[]
+  conversations  Conversation[]
+  quizzes        Quiz[]
+  attempts       QuizAttempt[]
+  flashcards     Flashcard[]
+  usageLogs      UsageLog[]
 
   @@map("users")
 }
@@ -363,4 +364,19 @@ model Job {
 
   @@index([status, runAt])
   @@map("jobs")
+}
+
+/// Token đặt lại mật khẩu: dùng một lần, hết hạn sau 30 phút; chỉ lưu băm
+model PasswordReset {
+  id        String    @id @default(uuid())
+  userId    String    @map("user_id")
+  tokenHash String    @unique @map("token_hash")
+  expiresAt DateTime  @map("expires_at")
+  usedAt    DateTime? @map("used_at")
+  createdAt DateTime  @default(now()) @map("created_at")
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@map("password_resets")
 }

@@ -1,6 +1,7 @@
 import { Router } from "express";
 import { authUserId, requireAuth } from "../../middleware/auth.js";
-import { getUser } from "../auth/auth.service.js";
+import { changePasswordBody, deleteAccountBody, profileBody } from "../auth/auth.schema.js";
+import { changePassword, deleteAccount, getUser, updateProfile } from "../auth/auth.service.js";
 import { consentBody } from "../conversations/conversations.schema.js";
 import { setLlmConsent } from "../conversations/conversations.service.js";
 
@@ -13,6 +14,18 @@ router.get("/me", requireAuth, async (req, res) => {
 router.put("/me/llm-consent", requireAuth, async (req, res) => {
   res.json(await setLlmConsent(authUserId(req), consentBody.parse(req.body).granted));
 });
-// PATCH /me, DELETE /me: lát E1.
+router.patch("/me", requireAuth, async (req, res) => {
+  res.json(await updateProfile(authUserId(req), profileBody.parse(req.body).displayName));
+});
+// Đổi mật khẩu thu hồi mọi phiên; web đưa người dùng về trang đăng nhập.
+router.post("/me/password", requireAuth, async (req, res) => {
+  const b = changePasswordBody.parse(req.body);
+  await changePassword(authUserId(req), b.currentPassword, b.newPassword);
+  res.status(204).end();
+});
+router.delete("/me", requireAuth, async (req, res) => {
+  await deleteAccount(authUserId(req), deleteAccountBody.parse(req.body).password);
+  res.status(204).end();
+});
 
 export default router;

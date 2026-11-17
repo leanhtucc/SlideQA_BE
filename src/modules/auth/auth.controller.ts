@@ -1,5 +1,5 @@
 import type { Request, RequestHandler } from "express";
-import { loginBody, registerBody, tokenBody } from "./auth.schema.js";
+import { forgotBody, loginBody, registerBody, resetBody, tokenBody } from "./auth.schema.js";
 import * as svc from "./auth.service.js";
 
 const device = (req: Request) => req.header("user-agent")?.slice(0, 200) ?? null;
@@ -15,6 +15,18 @@ export const login: RequestHandler = async (req, res) => {
 
 export const refresh: RequestHandler = async (req, res) => {
   res.json(await svc.refresh(tokenBody.parse(req.body).refreshToken));
+};
+
+// Luôn trả 204 dù email có tồn tại hay không, để không lộ email nào đã đăng ký.
+export const forgot: RequestHandler = async (req, res) => {
+  await svc.requestPasswordReset(forgotBody.parse(req.body).email);
+  res.status(204).end();
+};
+
+export const reset: RequestHandler = async (req, res) => {
+  const b = resetBody.parse(req.body);
+  await svc.resetPassword(b.token, b.password);
+  res.status(204).end();
 };
 
 export const logout: RequestHandler = async (req, res) => {

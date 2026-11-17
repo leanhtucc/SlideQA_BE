@@ -5,6 +5,10 @@ const schema = z.object({
   NODE_ENV: z.enum(["development", "test", "production"]).default("development"),
   PORT: z.coerce.number().int().positive().default(3000),
   DATABASE_URL: z.string().min(1),
+  /** Địa chỉ web, dùng dựng liên kết trong email (đặt lại mật khẩu) */
+  WEB_URL: z.string().default("http://localhost:5173"),
+  RESET_TTL_MINUTES: z.coerce.number().int().positive().default(30),
+  RESET_RATE_MAX: z.coerce.number().int().positive().default(5),
   CORS_ORIGIN: z.string().default("http://localhost:5173"),
   /** Số lớp proxy tin cậy phía trước (0 = không); cần đúng để rate limit lấy được IP thật */
   TRUST_PROXY: z.coerce.number().int().min(0).default(0),
