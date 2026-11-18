@@ -2,7 +2,10 @@ import type { Flashcard } from "@prisma/client";
 import { completeWithRetry, getLlm } from "../../lib/llm/index.js";
 import { AppError } from "../../middleware/error.js";
 import { prisma } from "../../prisma.js";
-import { buildCardPrompt, CARD_SYSTEM, parseCardsJson, takeCardPassages, validateCards } from "./generate.js";
+import { buildCardPrompt, CARD_SYSTEM, parseCardsJson, planBatches, validateCards, type ValidCard } from "./generate.js";
+
+/** Số lần gọi mô hình chạy cùng lúc khi tạo nhiều thẻ (giữ dưới giới hạn tốc độ của gói miễn phí). */
+const BATCH_CONCURRENCY = 3;
 
 const notFound = (what = "thẻ") => new AppError(404, "not_found", `Không tìm thấy ${what}.`);
 
@@ -99,32 +102,53 @@ export async function fromDocument(userId: string, b: { documentId: string; from
     orderBy: [{ page: "asc" }, { part: "asc" }],
     select: { page: true, text: true },
   });
-  const passages = takeCardPassages(chunks.filter((c) => c.text.trim().length > 0));
-  if (passages.length === 0) throw new AppError(422, "no_content", "Không có nội dung chữ ở khoảng trang này. Hãy thử khoảng trang khác.");
+  const batches = planBatches(chunks.filter((c) => c.text.trim().length > 0), b.count);
+  if (batches.length === 0) throw new AppError(422, "no_content", "Không có nội dung chữ ở khoảng trang này. Hãy thử khoảng trang khác.");
 
   const llm = getLlm();
   if (!llm) throw new AppError(503, "llm_unavailable", "Tạo thẻ tự động cần trợ lý AI, hiện chưa được bật.");
   const user = await prisma.user.findUniqueOrThrow({ where: { id: userId }, select: { llmConsentAt: true } });
   if (!user.llmConsentAt) throw new AppError(403, "consent_required", "Bạn cần đồng ý gửi đoạn tài liệu cho nhà cung cấp AI trước khi tạo thẻ.");
 
-  let raw;
-  try {
-    raw = await completeWithRetry(llm, { system: CARD_SYSTEM, user: buildCardPrompt(passages, b.count), maxTokens: 4000 });
-  } catch (e) {
-    console.warn("flashcard llm failed:", e instanceof Error ? e.message : "unknown"); // không ghi nội dung (NFR-08)
-    throw new AppError(502, "llm_failed", "Không tạo được thẻ lúc này. Hãy thử lại sau.");
+  // Mỗi lô là một lần gọi mô hình trên một phần tài liệu; chạy song song vừa phải để 100 thẻ xong trong chục giây.
+  // Một lô hỏng thì bỏ qua lô đó, chỉ báo lỗi khi mọi lô đều hỏng.
+  let tokensIn = 0;
+  let tokensOut = 0;
+  let failures = 0;
+  let badOutput = 0;
+  const collected: ValidCard[] = [];
+  const runBatch = async (batch: (typeof batches)[number]) => {
+    try {
+      const raw = await completeWithRetry(llm, { system: CARD_SYSTEM, user: buildCardPrompt(batch.passages, batch.count), maxTokens: 4000 });
+      tokensIn += raw.tokensIn;
+      tokensOut += raw.tokensOut;
+      const parsed = parseCardsJson(raw.text);
+      if (!parsed) return void badOutput++;
+      collected.push(...validateCards(parsed, new Set(batch.passages.map((p) => p.page)), batch.count));
+    } catch (e) {
+      failures++;
+      console.warn("flashcard llm failed:", e instanceof Error ? e.message : "unknown"); // không ghi nội dung (NFR-08)
+    }
+  };
+  for (let i = 0; i < batches.length; i += BATCH_CONCURRENCY) await Promise.all(batches.slice(i, i + BATCH_CONCURRENCY).map(runBatch));
+
+  const seen = new Set<string>();
+  const cards = collected.filter((c) => !seen.has(c.front.toLowerCase()) && seen.add(c.front.toLowerCase())).slice(0, b.count);
+  if (cards.length === 0) {
+    if (failures + badOutput === batches.length) {
+      throw badOutput > failures
+        ? new AppError(502, "llm_bad_output", "Trợ lý AI trả về kết quả không đọc được. Hãy thử lại.")
+        : new AppError(502, "llm_failed", "Không tạo được thẻ lúc này. Hãy thử lại sau.");
+    }
+    throw new AppError(422, "no_valid_questions", "Không tạo được thẻ hợp lệ, hãy thử khoảng trang khác.");
   }
-  const parsed = parseCardsJson(raw.text);
-  if (!parsed) throw new AppError(502, "llm_bad_output", "Trợ lý AI trả về kết quả không đọc được. Hãy thử lại.");
-  const cards = validateCards(parsed, new Set(passages.map((p) => p.page)), b.count);
-  if (cards.length === 0) throw new AppError(422, "no_valid_questions", "Không tạo được thẻ hợp lệ, hãy thử khoảng trang khác.");
 
   const existing = await prisma.flashcard.findMany({ where: { userId, documentId: doc.id, front: { in: cards.map((c) => c.front) } }, select: { front: true } });
   const has = new Set(existing.map((e) => e.front));
   const fresh = cards.filter((c) => !has.has(c.front));
   await prisma.$transaction(async (tx) => {
     if (fresh.length > 0) await tx.flashcard.createMany({ data: fresh.map((c) => ({ userId, documentId: doc.id, front: c.front, back: c.back, page: c.page, dueAt: new Date() })) });
-    await tx.usageLog.create({ data: { userId, kind: "quiz", tokensIn: raw.tokensIn, tokensOut: raw.tokensOut } });
+    await tx.usageLog.create({ data: { userId, kind: "quiz", tokensIn, tokensOut } });
   });
-  return { created: fresh.length, skipped: cards.length - fresh.length };
+  return { created: fresh.length, skipped: cards.length - fresh.length, requested: b.count };
 }

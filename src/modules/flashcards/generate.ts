@@ -22,6 +22,44 @@ Trả về DUY NHẤT một mảng JSON, mỗi phần tử có dạng:
 
 export const takeCardPassages = (chunks: Passage[]) => takePassages(chunks, CARD_CONTEXT_CHARS);
 
+/** Số thẻ mong muốn mỗi lần gọi mô hình: đủ nhỏ để câu trả lời không bị cắt và chất lượng không tụt. */
+export const CARDS_PER_CALL = 15;
+const MAX_PER_CALL = 25;
+
+export interface CardBatch {
+  passages: Passage[];
+  count: number;
+}
+
+/**
+ * Chia tài liệu thành các lô để tạo nhiều thẻ (tới 100): gom đoạn theo thứ tự trang thành các lô vừa ngân sách ký tự,
+ * chọn các lô trải đều toàn tài liệu nếu nhiều hơn số lô cần, rồi chia đều số thẻ cho từng lô.
+ */
+export function planBatches(chunks: Passage[], count: number): CardBatch[] {
+  const batches: Passage[][] = [];
+  let cur: Passage[] = [];
+  let used = 0;
+  for (const c of chunks) {
+    const text = c.text.slice(0, CARD_CONTEXT_CHARS);
+    if (cur.length > 0 && used + text.length > CARD_CONTEXT_CHARS) {
+      batches.push(cur);
+      cur = [];
+      used = 0;
+    }
+    cur.push({ page: c.page, text });
+    used += text.length;
+  }
+  if (cur.length > 0) batches.push(cur);
+  if (batches.length === 0) return [];
+
+  const wanted = Math.max(1, Math.ceil(count / CARDS_PER_CALL));
+  const picked = batches.length <= wanted ? batches : Array.from({ length: wanted }, (_, i) => batches[Math.floor((i * batches.length) / wanted)]!);
+  const base = Math.floor(count / picked.length);
+  const extra = count % picked.length;
+  // Tài liệu ngắn thì mỗi lô gánh nhiều thẻ hơn, nhưng không quá MAX_PER_CALL: tài liệu chỉ có bấy nhiêu ý để hỏi.
+  return picked.map((passages, i) => ({ passages, count: Math.min(MAX_PER_CALL, base + (i < extra ? 1 : 0)) })).filter((b) => b.count > 0);
+}
+
 export const buildCardPrompt = (passages: Passage[], count: number) =>
   `Tạo ${count} thẻ từ:\n\n${passages.map((p) => `[trang ${p.page}]\n${p.text}`).join("\n\n")}`;
 

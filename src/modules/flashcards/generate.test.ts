@@ -1,6 +1,6 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
-import { buildCardPrompt, validateCards } from "./generate.js";
+import { buildCardPrompt, CARD_CONTEXT_CHARS, planBatches, validateCards } from "./generate.js";
 
 const PAGES = new Set([1, 2, 3]);
 const good = (over: Record<string, unknown> = {}) => ({ front: "Gateway XOR là gì?", back: "Chọn đúng một luồng.", page: 2, ...over });
@@ -22,4 +22,23 @@ test("loại thẻ trùng câu hỏi (không phân biệt hoa thường) và d�
 
 test("prompt có nhãn trang và số thẻ cần tạo", () => {
   assert.match(buildCardPrompt([{ page: 3, text: "nội dung" }], 12), /Tạo 12 thẻ từ:\n\n\[trang 3\]\nnội dung/);
+});
+
+const chunk = (page: number, len = 1000) => ({ page, text: "x".repeat(len) });
+
+test("planBatches: tài liệu dài chia nhiều lô trải đều, tổng số thẻ đúng yêu cầu", () => {
+  const chunks = Array.from({ length: 100 }, (_, i) => chunk(i + 1, 4000)); // 400k ký tự, nhiều lô
+  const plan = planBatches(chunks, 100);
+  assert.equal(plan.length, 7); // ceil(100/15)
+  assert.equal(plan.reduce((n, b) => n + b.count, 0), 100);
+  for (const b of plan) assert.ok(b.passages.reduce((n, p) => n + p.text.length, 0) <= CARD_CONTEXT_CHARS);
+  const firstPages = plan.map((b) => b.passages[0]!.page);
+  assert.deepEqual(firstPages, [...firstPages].sort((a, b) => a - b), "lô theo thứ tự trang");
+  assert.ok(firstPages[firstPages.length - 1]! > 50, "có lô ở nửa sau tài liệu");
+});
+
+test("planBatches: tài liệu ngắn dùng một lô, không đòi quá 25 thẻ mỗi lô, tài liệu rỗng thì không có lô", () => {
+  assert.deepEqual(planBatches([chunk(1), chunk(2)], 10).map((b) => b.count), [10]);
+  assert.deepEqual(planBatches([chunk(1)], 100).map((b) => b.count), [25]);
+  assert.deepEqual(planBatches([], 10), []);
 });

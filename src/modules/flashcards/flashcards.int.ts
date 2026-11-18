@@ -101,7 +101,7 @@ test("tạo thẻ từ câu sai của một lượt: chỉ câu sai và bỏ tr�
 
   const res = await request(app).post(`${F}/from-attempt/${attempt}`).set(u.auth);
   assert.equal(res.status, 201);
-  assert.deepEqual(res.body, { created: 2, skipped: 0 });
+  assert.deepEqual(res.body, { created: 2, skipped: 0, requested: 3 });
   const cards = (await request(app).get(F).set(u.auth)).body;
   assert.equal(cards.length, 2);
   const c2 = cards.find((c: { front: string }) => c.front === "Câu 2?");
@@ -130,11 +130,11 @@ test("tạo thẻ từ tài liệu: cần đồng ý AI, loại thẻ sai trang,
   await grantConsent(u);
   const res = await request(app).post(`${F}/from-document`).set(u.auth).send(body);
   assert.equal(res.status, 201);
-  assert.deepEqual(res.body, { created: 2, skipped: 0 });
+  assert.deepEqual(res.body, { created: 2, skipped: 0, requested: 3 });
   assert.equal((await request(app).get(`${F}?due=true`).set(u.auth)).body.length, 2, "thẻ mới đến hạn ngay");
 
-  assert.deepEqual((await request(app).post(`${F}/from-document`).set(u.auth).send(body)).body, { created: 0, skipped: 2 });
-  assert.equal((await request(app).post(`${F}/from-document`).set(u.auth).send({ documentId, count: 21 })).status, 422);
+  assert.deepEqual((await request(app).post(`${F}/from-document`).set(u.auth).send(body)).body, { created: 0, skipped: 2, requested: 3 });
+  assert.equal((await request(app).post(`${F}/from-document`).set(u.auth).send({ documentId, count: 101 })).status, 422);
   const other = await signup();
   assert.equal((await request(app).post(`${F}/from-document`).set(other.auth).send(body)).status, 404);
 });

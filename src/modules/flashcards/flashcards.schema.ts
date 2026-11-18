@@ -21,7 +21,7 @@ export const fromDocumentBody = z
     documentId: z.uuid("Hãy chọn tài liệu."),
     fromPage: z.number().int("Trang phải là số nguyên.").min(1, "Trang bắt đầu từ 1.").optional(),
     toPage: z.number().int("Trang phải là số nguyên.").min(1, "Trang bắt đầu từ 1.").optional(),
-    count: z.number().int("Số thẻ phải là số nguyên.").min(1, "Tối thiểu 1 thẻ.").max(20, "Tối đa 20 thẻ.").default(10),
+    count: z.number().int("Số thẻ phải là số nguyên.").min(1, "Tối thiểu 1 thẻ.").max(100, "Tối đa 100 thẻ.").default(10),
   })
   .refine((b) => b.fromPage === undefined || b.toPage === undefined || b.fromPage <= b.toPage, {
     path: ["toPage"],
