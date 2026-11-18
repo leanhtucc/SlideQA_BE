@@ -1,7 +1,9 @@
 import { Router, type Request } from "express";
+import { env } from "../../config/env.js";
 import { authUserId, requireAuth } from "../../middleware/auth.js";
 import { AppError } from "../../middleware/error.js";
-import { createCardBody, idParam, listQuery, reviewBody } from "./flashcards.schema.js";
+import { rateLimit } from "../../middleware/rateLimit.js";
+import { createCardBody, fromDocumentBody, idParam, listQuery, reviewBody } from "./flashcards.schema.js";
 import * as svc from "./flashcards.service.js";
 
 const router = Router();
@@ -20,6 +22,13 @@ router.get("/", async (req, res) => {
 router.post("/", async (req, res) => {
   res.status(201).json(await svc.createCard(authUserId(req), createCardBody.parse(req.body)));
 });
+router.post(
+  "/from-document",
+  rateLimit({ windowMs: 3_600_000, max: env.QUIZ_RATE_MAX, key: (r) => r.auth?.userId ?? r.ip ?? "unknown" }),
+  async (req, res) => {
+    res.status(201).json(await svc.fromDocument(authUserId(req), fromDocumentBody.parse(req.body)));
+  },
+);
 router.post("/from-attempt/:id", async (req, res) => {
   res.status(201).json(await svc.fromAttempt(authUserId(req), idOf(req)));
 });

@@ -112,3 +112,29 @@ test("tạo thẻ từ câu sai của một lượt: chỉ câu sai và bỏ tr�
   const other = await signup();
   assert.equal((await request(app).post(`${F}/from-attempt/${attempt}`).set(other.auth)).status, 404);
 });
+
+test("tạo thẻ từ tài liệu: cần đồng ý AI, loại thẻ sai trang, không tạo trùng khi bấm lại, thẻ đến hạn ngay", async () => {
+  const u = await signup();
+  const { documentId } = await seedDocument(u.id);
+  const body = { documentId, count: 3 };
+  assert.equal((await request(app).post(`${F}/from-document`).set(u.auth).send(body)).status, 503, "chưa bật AI");
+
+  const cards = [
+    { front: "Khái niệm A?", back: "Là A.", page: 1 },
+    { front: "Khái niệm B?", back: "Là B.", page: 2 },
+    { front: "Khái niệm ngoài tài liệu?", back: "Sai trang.", page: 999 },
+  ];
+  setLlmClient({ complete: async () => ({ text: JSON.stringify(cards), tokensIn: 10, tokensOut: 10 }) });
+  assert.equal((await request(app).post(`${F}/from-document`).set(u.auth).send(body)).status, 403, "chưa đồng ý gửi dữ liệu");
+
+  await grantConsent(u);
+  const res = await request(app).post(`${F}/from-document`).set(u.auth).send(body);
+  assert.equal(res.status, 201);
+  assert.deepEqual(res.body, { created: 2, skipped: 0 });
+  assert.equal((await request(app).get(`${F}?due=true`).set(u.auth)).body.length, 2, "thẻ mới đến hạn ngay");
+
+  assert.deepEqual((await request(app).post(`${F}/from-document`).set(u.auth).send(body)).body, { created: 0, skipped: 2 });
+  assert.equal((await request(app).post(`${F}/from-document`).set(u.auth).send({ documentId, count: 21 })).status, 422);
+  const other = await signup();
+  assert.equal((await request(app).post(`${F}/from-document`).set(other.auth).send(body)).status, 404);
+});
